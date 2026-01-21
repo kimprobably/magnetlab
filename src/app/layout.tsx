@@ -1,0 +1,24 @@
+import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
+import './globals.css';
+
+const inter = Inter({ subsets: ['latin'] });
+
+export const metadata: Metadata = {
+  title: 'MagnetLab - Create High-Converting LinkedIn Lead Magnets',
+  description:
+    'Generate lead magnets that your ICP will love. Extract your unique expertise with our AI-guided process, not generic content.',
+  keywords: ['lead magnet', 'LinkedIn', 'lead generation', 'content creation', 'AI'],
+};
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en" suppressHydrationWarning>
+      <body className={inter.className}>{children}</body>
+    </html>
+  );
+}

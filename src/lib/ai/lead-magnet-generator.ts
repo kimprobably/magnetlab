@@ -1,0 +1,503 @@
+import Anthropic from '@anthropic-ai/sdk';
+import type {
+  BusinessContext,
+  LeadMagnetArchetype,
+  LeadMagnetConcept,
+  IdeationResult,
+  ContentExtractionQuestion,
+  ExtractedContent,
+  PostWriterInput,
+  PostWriterResult,
+  ChatMessage,
+} from '@/lib/types/lead-magnet';
+
+// Lazy initialization to ensure env vars are loaded
+function getAnthropicClient(): Anthropic {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    throw new Error('ANTHROPIC_API_KEY is not set in environment variables');
+  }
+  return new Anthropic({ apiKey });
+}
+
+// =============================================================================
+// PHASE 1: IDEATION
+// =============================================================================
+
+const IDEATION_SYSTEM_PROMPT = `You are helping someone create high-converting LinkedIn lead magnets. A lead magnet is a free resource offered in exchange for engagement that demonstrates expertise and builds an email list.
+
+THE VIRAL LEAD MAGNET FRAMEWORK - Every lead magnet must pass these 5 criteria:
+1. High Value ($50+) - Would someone pay $50+ for this?
+2. Urgent Pain Solved - Is this a RIGHT NOW problem?
+3. Actionable in <1h - Can they USE this and get a result within 60 minutes?
+4. Simple - Can they understand the core idea in under 2 minutes?
+5. Authority-Boosting - Does giving this away make YOU look like the expert?
+
+THE 10 ARCHETYPES:
+1. single-breakdown: Reverse-engineer ONE successful example in detail
+2. single-system: ONE proven process for ONE specific outcome
+3. focused-toolkit: Curated collection for ONE use case (10-20 items)
+4. single-calculator: ONE working tool that answers ONE question
+5. focused-directory: Curated list for ONE need (5-15 items with context)
+6. mini-training: Focused tutorial on ONE specific skill
+7. one-story: Your journey or ONE client transformation
+8. prompt: ONE AI prompt that accomplishes ONE valuable task
+9. assessment: Diagnostic tool that evaluates ONE specific area
+10. workflow: ONE working automation they can import and use
+
+TITLE FORMULAS:
+- The [Specific Thing] That [Specific Result]
+- The [Number]-[Component] [Format] for [Outcome]
+- How I [Achieved Result]—[The Deliverable]
+- The [Audience] [Format]: [Specific Outcome]
+- [Number] [Things] That [Outcome] (+ [Bonus Element])`;
+
+export async function generateLeadMagnetIdeas(
+  context: BusinessContext
+): Promise<IdeationResult> {
+  const prompt = `${IDEATION_SYSTEM_PROMPT}
+
+BUSINESS CONTEXT:
+- Business: ${context.businessDescription}
+- Credibility markers: ${context.credibilityMarkers.join(', ')}
+- Urgent pains audience faces: ${context.urgentPains.join('; ')}
+- Templates you use: ${context.templates.join(', ') || 'None specified'}
+- Processes you've refined: ${context.processes.join(', ') || 'None specified'}
+- Tools/prompts you rely on: ${context.tools.join(', ') || 'None specified'}
+- Questions you answer repeatedly: ${context.frequentQuestions.join('; ') || 'None specified'}
+- Results you've achieved: ${context.results.join('; ')}
+- Success example to break down: ${context.successExample || 'None specified'}
+- Business type: ${context.businessType}
+
+Generate 10 lead magnet concepts (one for each archetype). For each, provide:
+1. archetype: The archetype key (e.g., "single-breakdown")
+2. archetypeName: Human-readable name (e.g., "The Single Breakdown")
+3. title: Using a title formula - specific and outcome-focused
+4. painSolved: The ONE urgent pain it solves
+5. whyNowHook: Which urgency technique to use
+6. linkedinPost: Complete post using hook through CTA, ready to copy-paste
+7. contents: Detailed description of what they'll receive
+8. deliveryFormat: Google Doc, Sheet, Notion, Loom, etc.
+9. viralCheck: Object with boolean for each of the 5 criteria
+10. creationTimeEstimate: Based on assets they already have
+11. bundlePotential: What other lead magnets could combine with this
+
+After all 10 concepts, provide:
+- recommendations with shipThisWeek, highestEngagement, bestAuthorityBuilder (each with conceptIndex 0-9 and reason)
+- suggestedBundle with name, components array, combinedValue, releaseStrategy
+
+Return ONLY valid JSON with this structure:
+{
+  "concepts": [...10 concepts...],
+  "recommendations": {...},
+  "suggestedBundle": {...}
+}`;
+
+  const response = await getAnthropicClient().messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 8000,
+    messages: [{ role: 'user', content: prompt }],
+  });
+
+  const textContent = response.content.find((block) => block.type === 'text');
+  if (!textContent || textContent.type !== 'text') {
+    throw new Error('No text response from Claude');
+  }
+
+  try {
+    const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]) as IdeationResult;
+    }
+    return JSON.parse(textContent.text) as IdeationResult;
+  } catch {
+    throw new Error('Failed to parse ideation response');
+  }
+}
+
+// =============================================================================
+// PHASE 2: CONTENT EXTRACTION - Get questions by archetype
+// =============================================================================
+
+const ARCHETYPE_QUESTIONS: Record<LeadMagnetArchetype, ContentExtractionQuestion[]> = {
+  'single-breakdown': [
+    { id: 'example', question: "What's the ONE example you're breaking down? Describe it—is it your own work or someone else's? What made it successful? What are the specific results it achieved?", required: true },
+    { id: 'walkthrough', question: "Walk me through the example piece by piece. If it's an email, read me each line. If it's a landing page, describe each section. I need the raw material.", required: true },
+    { id: 'psychology', question: "Now tell me WHY each element works. What's the psychology? What's the strategy? What would most people miss if they just looked at this surface-level?", required: true },
+    { id: 'insight', question: "What's the non-obvious insight here? The thing that makes this work that isn't immediately apparent?", required: true },
+    { id: 'adaptation', question: "How can someone adapt this to their situation? What are the principles to extract vs. details to change? Common mistakes when copying?", required: true },
+  ],
+  'single-system': [
+    { id: 'outcome', question: "What's the specific outcome this system produces? Not vague—what measurable result does someone get?", required: true },
+    { id: 'steps', question: "Walk me through the system step by step. What's step 1? What do they actually DO? Then step 2? Keep going until complete.", required: true },
+    { id: 'pitfalls', question: "For each step, what are the key decision points or things that can go wrong? Where do people usually mess up?", required: true },
+    { id: 'templates', question: "What templates, scripts, or tools are part of this system? Describe each one—what does it look like, what sections does it have?", required: true },
+    { id: 'results', question: "What results have you or your clients gotten from this system? Give me specific numbers, timeframes, before/after comparisons.", required: true },
+    { id: 'differentiation', question: "What makes YOUR system different from generic advice on this topic? What's distinctly yours?", required: true },
+  ],
+  'focused-toolkit': [
+    { id: 'useCase', question: "What's the specific use case this toolkit serves? When would someone reach for this? What problem are they facing?", required: true },
+    { id: 'items', question: "List out every item that should be in this toolkit. Don't filter yet—give me everything useful for this use case.", required: true },
+    { id: 'content', question: "For each item, give me the actual content. If it's a template, what does it say? If it's a script, what are the words?", required: true },
+    { id: 'context', question: "For each item, when should someone use it? What situation calls for this specific one vs. the others?", required: true },
+    { id: 'testing', question: "Which items have you actually tested? What results did they get? Add any data or proof you have.", required: true },
+    { id: 'exclusions', question: "Are there items that seem like they should be included but don't work? What should people AVOID?", required: false },
+  ],
+  'single-calculator': [
+    { id: 'question', question: "What question does this calculator answer? What decision will someone be able to make after using it?", required: true },
+    { id: 'inputs', question: "What inputs does the user need to provide? List every number, data point, or selection they'll enter.", required: true },
+    { id: 'logic', question: "What's the calculation or logic? Walk me through how the inputs become the output.", required: true },
+    { id: 'output', question: "What does the output look like? Is it a single number, a score, a recommendation?", required: true },
+    { id: 'interpretation', question: "How should they interpret the output? What's good vs. bad? What are the benchmarks?", required: true },
+    { id: 'limitations', question: "What are the limitations or caveats? When does this calculator NOT apply?", required: false },
+  ],
+  'focused-directory': [
+    { id: 'need', question: "What specific need does this directory serve? What problem does having this list solve?", required: true },
+    { id: 'items', question: "List every item that should be in this directory. Give me names, links, or identifiers for each.", required: true },
+    { id: 'dataPoints', question: "For each item, what information should be included? Pricing, features, pros/cons, use cases?", required: true },
+    { id: 'experience', question: "Now fill in that information for each item. Give me YOUR take—not generic descriptions.", required: true },
+    { id: 'choosing', question: "How should someone choose between these options? What are the decision criteria?", required: true },
+    { id: 'excluded', question: "Are there popular options you intentionally EXCLUDED? Why?", required: false },
+  ],
+  'mini-training': [
+    { id: 'skill', question: "What specific skill will someone learn? What will they be able to do after completing this?", required: true },
+    { id: 'chunks', question: "Break this skill into teachable chunks. What are the 3-5 components someone needs to learn?", required: true },
+    { id: 'teaching', question: "For each component, walk me through how you'd teach it. What's the explanation? What examples?", required: true },
+    { id: 'practice', question: "What's the hands-on element? What will they practice or create during the training?", required: true },
+    { id: 'mistakes', question: "What are the common mistakes or misconceptions? What do beginners get wrong?", required: true },
+    { id: 'beforeAfter', question: "Do you have a before/after example? Someone who learned this skill and what changed?", required: false },
+  ],
+  'one-story': [
+    { id: 'summary', question: "What's the story you're telling? Is it your own journey, a client transformation, or a specific project? One-sentence summary.", required: true },
+    { id: 'before', question: "Set the scene: What was the BEFORE state? The problem, struggle, or situation? Give specific details—numbers, emotions, context.", required: true },
+    { id: 'journey', question: "What happened? Walk me through the key moments, decisions, and actions. What did you/they actually DO?", required: true },
+    { id: 'turningPoint', question: "What was the turning point? The key insight, change, or decision that made the difference?", required: true },
+    { id: 'after', question: "What was the AFTER state? What results were achieved? Give specific numbers, outcomes, and changes.", required: true },
+    { id: 'lessons', question: "What are the transferable lessons? What principles can someone extract and apply to their own situation?", required: true },
+  ],
+  'prompt': [
+    { id: 'task', question: "What does this prompt accomplish? What task does it perform? What output does it produce?", required: true },
+    { id: 'prompt', question: "Give me the exact prompt, word for word. The actual text someone would copy and paste.", required: true },
+    { id: 'inputs', question: "What inputs does the user need to provide? What information do they paste in or customize?", required: true },
+    { id: 'examples', question: "Show me 2-3 examples of this prompt in action. Give me sample inputs and the outputs they produced.", required: true },
+    { id: 'technique', question: "What makes this prompt work? What's the technique or structure that makes it effective?", required: true },
+    { id: 'tips', question: "What are the tips for getting better results? Which AI model works best? Any settings to adjust?", required: false },
+  ],
+  'assessment': [
+    { id: 'evaluates', question: "What does this assessment evaluate? What area or capability is being scored?", required: true },
+    { id: 'questions', question: "List out every question or criterion that should be included. What are you measuring? Give me 10-20 items.", required: true },
+    { id: 'scoring', question: "For each item, what's the scoring scale? How does someone rate themselves?", required: true },
+    { id: 'ranges', question: "What do the total scores mean? Define the ranges—what's a good score, what's concerning?", required: true },
+    { id: 'actions', question: "For each score range, what should someone do next? What's the recommended action?", required: true },
+    { id: 'benchmarks', question: "What benchmarks or context can you provide? How do most people score?", required: false },
+  ],
+  'workflow': [
+    { id: 'purpose', question: "What does this automation do? Describe the trigger and the outcome.", required: true },
+    { id: 'steps', question: "Walk me through each step of the automation. What's the sequence? What tools are connected?", required: true },
+    { id: 'setup', question: "What does the setup process look like? What accounts or tools does someone need?", required: true },
+    { id: 'customization', question: "What customization options exist? What should someone change to fit their situation?", required: true },
+    { id: 'timeSaved', question: "How much time does this save? What's the manual alternative? Quantify the value.", required: true },
+    { id: 'troubleshooting', question: "What can go wrong? What are the common setup mistakes or failure points?", required: false },
+  ],
+};
+
+export function getExtractionQuestions(archetype: LeadMagnetArchetype): ContentExtractionQuestion[] {
+  return ARCHETYPE_QUESTIONS[archetype] || [];
+}
+
+// =============================================================================
+// PHASE 2: CONTENT CREATION - Process answers and generate structure
+// =============================================================================
+
+export async function processContentExtraction(
+  archetype: LeadMagnetArchetype,
+  concept: LeadMagnetConcept,
+  answers: Record<string, string>
+): Promise<ExtractedContent> {
+  const questions = ARCHETYPE_QUESTIONS[archetype];
+  const qaPairs = questions
+    .map((q) => `Q: ${q.question}\nA: ${answers[q.id] || 'Not provided'}`)
+    .join('\n\n');
+
+  const prompt = `You are a lead magnet strategist. Based on the following Q&A extraction, structure the content for this lead magnet.
+
+LEAD MAGNET CONCEPT:
+Title: ${concept.title}
+Archetype: ${concept.archetypeName}
+Pain Solved: ${concept.painSolved}
+Format: ${concept.deliveryFormat}
+
+EXTRACTED CONTENT:
+${qaPairs}
+
+Now structure this into a deliverable. Provide:
+1. title: Final polished title
+2. format: Delivery format (Google Doc, Sheet, etc.)
+3. structure: Array of sections, each with sectionName and contents array
+4. nonObviousInsight: The "aha" moment that makes this valuable
+5. personalExperience: Where the creator's unique experience shows
+6. proof: Specific numbers, results, or evidence included
+7. commonMistakes: Array of mistakes this helps avoid
+8. differentiation: What makes this different from generic advice
+
+Also evaluate against the 5 viral criteria and note any weaknesses.
+
+Return ONLY valid JSON.`;
+
+  const response = await getAnthropicClient().messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 4000,
+    messages: [{ role: 'user', content: prompt }],
+  });
+
+  const textContent = response.content.find((block) => block.type === 'text');
+  if (!textContent || textContent.type !== 'text') {
+    throw new Error('No text response from Claude');
+  }
+
+  try {
+    const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]) as ExtractedContent;
+    }
+    return JSON.parse(textContent.text) as ExtractedContent;
+  } catch {
+    throw new Error('Failed to parse content extraction response');
+  }
+}
+
+// =============================================================================
+// PHASE 3: POST WRITING
+// =============================================================================
+
+const POST_WRITER_SYSTEM = `You are a LinkedIn post writer specializing in lead magnet promotion. Write scroll-stopping posts that drive comments.
+
+CRITICAL - AVOID AI CLICHÉS:
+BANNED: "Here's the thing...", "Let me be honest...", "In today's fast-paced world...", "What if I told you...?", "The truth is...", "Stop scrolling...", "Game-changer", "Deep dive", "Leverage", "Actionable insights", "Take it to the next level"
+
+BANNED PATTERNS:
+- "My clients don't X. They Y"
+- "Most people think X. But the reality is Y"
+- "Does this sound familiar?"
+- Excessive exclamation points
+- Emoji overload
+
+POST STRUCTURE:
+1. Hook (1-2 lines) - Pattern interrupt, specific result, or contrarian statement
+2. Credibility anchor (1-3 lines) - Why you specifically
+3. Problem agitation (2-4 lines) - The painful status quo
+4. Solution introduction (1-2 lines) - What you built
+5. Contents list (5-8 bullets) - Specific, tangible components with quantities
+6. Transformation promise (1-2 lines) - The outcome
+7. CTA (2-3 lines) - Comment word + connection reminder
+
+HOOK TYPES:
+- Specific Result: "This cold email got a 42% reply rate."
+- Price Anchoring: "I charge $5,000 to implement this. Today it's free."
+- Contrarian: "Your agency doesn't need more clients."
+- Time Saved: "I haven't written a proposal from scratch in 8 months."
+- Confession: "I spent 18 months doing this wrong."`;
+
+export async function generatePostVariations(
+  input: PostWriterInput
+): Promise<PostWriterResult> {
+  const prompt = `${POST_WRITER_SYSTEM}
+
+LEAD MAGNET DETAILS:
+- Title: ${input.leadMagnetTitle}
+- Format: ${input.format}
+- Contents: ${input.contents}
+- Problem Solved: ${input.problemSolved}
+- Credibility: ${input.credibility}
+- Audience: ${input.audience}
+- Audience Style: ${input.audienceStyle}
+- Proof: ${input.proof}
+- CTA Word: ${input.ctaWord}
+- Urgency Angle: ${input.urgencyAngle || 'Not specified'}
+
+Generate 3 distinct post variations using different hooks/angles.
+
+For each variation provide:
+1. hookType: The type of hook used (e.g., "Specific Result", "Price Anchoring")
+2. post: The complete LinkedIn post ready to copy-paste
+3. whyThisAngle: 1-2 sentences on why this hook could work
+4. evaluation: Object with hookStrength, credibilityClear, problemResonance, contentsSpecific, toneMatch, aiClicheFree
+
+After all 3, provide:
+- recommendation: Which to use and why, or how to combine elements
+- dmTemplate: Short personalized DM (use {first_name} and [LINK])
+- ctaWord: The comment trigger word
+
+Return ONLY valid JSON:
+{
+  "variations": [...3 variations...],
+  "recommendation": "...",
+  "dmTemplate": "...",
+  "ctaWord": "${input.ctaWord}"
+}`;
+
+  const response = await getAnthropicClient().messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 6000,
+    messages: [{ role: 'user', content: prompt }],
+  });
+
+  const textContent = response.content.find((block) => block.type === 'text');
+  if (!textContent || textContent.type !== 'text') {
+    throw new Error('No text response from Claude');
+  }
+
+  try {
+    const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]) as PostWriterResult;
+    }
+    return JSON.parse(textContent.text) as PostWriterResult;
+  } catch {
+    throw new Error('Failed to parse post writer response');
+  }
+}
+
+// =============================================================================
+// CONVERSATIONAL CHAT FOR CONTENT EXTRACTION
+// =============================================================================
+
+export async function continueContentChat(
+  archetype: LeadMagnetArchetype,
+  concept: LeadMagnetConcept,
+  messages: ChatMessage[]
+): Promise<string> {
+  const systemPrompt = `You are a lead magnet strategist helping extract content for: "${concept.title}"
+Archetype: ${concept.archetypeName}
+
+Your job is to:
+1. Ask follow-up questions to extract specific, valuable content
+2. Push for specifics - never accept vague answers
+3. Look for the "gold" - unique insights, real examples, actual numbers
+4. Challenge generic content - "This feels generic. What's the thing only YOU know?"
+5. Demand real examples - templates should have actual words, not descriptions
+
+Be conversational but structured. When you have enough content for a section, acknowledge it and move to the next area.
+
+Current extraction questions for this archetype are about:
+${ARCHETYPE_QUESTIONS[archetype].map((q) => `- ${q.question.substring(0, 100)}...`).join('\n')}
+
+Keep responses concise but thorough. Ask one focused question at a time.`;
+
+  const response = await getAnthropicClient().messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 1000,
+    system: systemPrompt,
+    messages: messages.map((m) => ({
+      role: m.role,
+      content: m.content,
+    })),
+  });
+
+  const textContent = response.content.find((block) => block.type === 'text');
+  if (!textContent || textContent.type !== 'text') {
+    throw new Error('No text response from Claude');
+  }
+
+  return textContent.text;
+}
+
+// =============================================================================
+// SMART CONTEXT IMPORT - Extract BusinessContext from unstructured content
+// =============================================================================
+
+import type { ExtractionResult, ContentType } from '@/lib/types/lead-magnet';
+
+const CONTEXT_EXTRACTION_PROMPT = `You are an expert at extracting business context from unstructured content.
+Your job is to identify key information that would help generate lead magnet ideas.
+
+CONTENT TO ANALYZE:
+"""
+{content}
+"""
+
+Extract the following fields. For each field:
+- Extract only what is explicitly stated or strongly implied
+- Do NOT make up information that isn't there
+- Provide a confidence level: "high" (explicitly stated), "medium" (strongly implied), "low" (inferred)
+
+FIELDS TO EXTRACT:
+
+1. businessDescription: A 1-2 sentence summary of what they do and who they serve
+2. businessType: One of: coach-consultant, agency-owner, course-creator, freelancer, saas-tech, b2b-service
+3. credibilityMarkers: Array of specific results with numbers (e.g., "$2.3M revenue", "500+ clients")
+4. urgentPains: Array of problems/pain points their audience faces
+5. results: Array of outcomes/transformations they deliver
+6. templates: Array of any templates, frameworks, or systems mentioned
+7. processes: Array of any processes or methodologies mentioned
+8. tools: Array of tools, software, or resources mentioned
+9. frequentQuestions: Array of questions their audience commonly asks
+10. successExample: Any case study, example, or success story mentioned
+
+Respond in this exact JSON format:
+{
+  "extracted": {
+    "businessDescription": "...",
+    "businessType": "...",
+    "credibilityMarkers": [...],
+    "urgentPains": [...],
+    "results": [...],
+    "templates": [...],
+    "processes": [...],
+    "tools": [...],
+    "frequentQuestions": [...],
+    "successExample": "..."
+  },
+  "confidence": {
+    "businessDescription": "high|medium|low",
+    "businessType": "high|medium|low",
+    "credibilityMarkers": "high|medium|low",
+    "urgentPains": "high|medium|low",
+    "results": "high|medium|low",
+    "templates": "high|medium|low",
+    "processes": "high|medium|low",
+    "tools": "high|medium|low",
+    "frequentQuestions": "high|medium|low",
+    "successExample": "high|medium|low"
+  },
+  "suggestions": [
+    "Consider adding specific revenue numbers",
+    "The pain points could be more specific"
+  ]
+}`;
+
+export async function extractBusinessContext(
+  content: string,
+  contentType?: ContentType
+): Promise<ExtractionResult> {
+  if (!content || content.trim().length < 50) {
+    throw new Error('Content is too short for meaningful extraction. Please provide more text.');
+  }
+
+  const contextHint = contentType
+    ? `\n\nThis content appears to be from a ${contentType.replace('-', ' ')}.`
+    : '';
+
+  const prompt = CONTEXT_EXTRACTION_PROMPT.replace('{content}', content) + contextHint;
+
+  const response = await getAnthropicClient().messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 4000,
+    messages: [{ role: 'user', content: prompt }],
+  });
+
+  const textContent = response.content.find((block) => block.type === 'text');
+  if (!textContent || textContent.type !== 'text') {
+    throw new Error('No text response from Claude');
+  }
+
+  try {
+    const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]) as ExtractionResult;
+    }
+    return JSON.parse(textContent.text) as ExtractionResult;
+  } catch {
+    throw new Error('Failed to parse context extraction response');
+  }
+}
