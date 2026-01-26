@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-// Routes that require authentication
+// Routes that require authentication AND email verification
 const protectedRoutes = ['/create', '/library', '/analytics', '/settings'];
 
 // Routes that should redirect to library if authenticated
 const authRoutes = ['/login'];
+
+// Routes that require authentication but NOT email verification
+const verificationExemptRoutes = ['/verify-email', '/verification-pending'];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -27,6 +30,11 @@ export function middleware(request: NextRequest) {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('callbackUrl', pathname);
     return NextResponse.redirect(loginUrl);
+  }
+
+  // Redirect unauthenticated users trying to access verification pages
+  if (!isAuthenticated && verificationExemptRoutes.some((route) => pathname.startsWith(route))) {
+    return NextResponse.redirect(new URL('/login', request.url));
   }
 
   return NextResponse.next();
