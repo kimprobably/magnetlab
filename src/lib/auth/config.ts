@@ -3,6 +3,7 @@
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
+import { sendVerificationEmail } from '@/lib/email';
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
@@ -25,7 +26,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         // Check if user exists
         const { data: existingUser } = await supabase
           .from('users')
-          .select('id, email, name, avatar_url, password_hash')
+          .select('id, email, name, avatar_url, password_hash, email_verified_at')
           .eq('email', email)
           .single();
 
@@ -42,6 +43,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             email: existingUser.email,
             name: existingUser.name,
             image: existingUser.avatar_url,
+            emailVerified: existingUser.email_verified_at ? new Date(existingUser.email_verified_at) : null,
           };
         }
 
@@ -68,10 +70,25 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           status: 'active',
         });
 
+        // Generate verification token and send email
+        const { data: tokenData, error: tokenError } = await supabase.rpc(
+          'setup_email_verification',
+          { p_user_id: newUser.id }
+        );
+
+        if (!tokenError && tokenData && tokenData[0]) {
+          // Send verification email
+          await sendVerificationEmail({
+            to: email,
+            token: tokenData[0].token,
+          });
+        }
+
         return {
           id: newUser.id,
           email: newUser.email,
           name: newUser.name,
+          emailVerified: null,
         };
       },
     }),
@@ -81,16 +98,33 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     error: '/login',
   },
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
       if (user) {
         token.userId = user.id;
+        token.emailVerified = user.emailVerified;
       }
+
+      // Refresh email verification status on update
+      if (trigger === 'update') {
+        const supabase = createSupabaseAdminClient();
+        const { data } = await supabase
+          .from('users')
+          .select('email_verified_at')
+          .eq('id', token.userId)
+          .single();
+
+        if (data) {
+          token.emailVerified = data.email_verified_at ? new Date(data.email_verified_at) : null;
+        }
+      }
+
       return token;
     },
     async session({ session, token }) {
       if (token.userId) {
         session.user.id = token.userId as string;
       }
+      session.user.emailVerified = token.emailVerified as Date | null;
       return session;
     },
   },
@@ -123,6 +157,18 @@ declare module 'next-auth' {
       name?: string | null;
       email?: string | null;
       image?: string | null;
+      emailVerified?: Date | null;
     };
+  }
+
+  interface User {
+    emailVerified?: Date | null;
+  }
+}
+
+declare module '@auth/core/jwt' {
+  interface JWT {
+    userId?: string;
+    emailVerified?: Date | null;
   }
 }
