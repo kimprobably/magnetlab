@@ -15,7 +15,7 @@
  * The test below reproduces the bug by demonstrating that password
  * verification fails when AUTH_SECRET changes.
  */
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect } from '@jest/globals';
 
 // Recreate the password hashing functions from src/lib/auth/config.ts
 async function hashPassword(password: string, authSecret: string | undefined): Promise<string> {
