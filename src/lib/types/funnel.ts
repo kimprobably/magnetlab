@@ -341,8 +341,8 @@ export function parseVideoUrl(url: string): ParsedVideoUrl {
     };
   }
 
-  // Wistia
-  const wistiaMatch = url.match(/wistia\.com\/(?:medias|embed)\/([a-zA-Z0-9]+)/);
+  // Wistia (supports wistia.com and fast.wistia.net)
+  const wistiaMatch = url.match(/(?:wistia\.com\/(?:medias|embed)|fast\.wistia\.net\/embed\/iframe)\/([a-zA-Z0-9]+)/);
   if (wistiaMatch) {
     return {
       provider: 'wistia',

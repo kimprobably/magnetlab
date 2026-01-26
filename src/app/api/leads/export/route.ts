@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
+import { escapeCSVValue, validatePaginationLimit } from '@/lib/utils/security';
 
 // GET /api/leads/export - Export leads as CSV
 export async function GET(request: Request) {
@@ -87,16 +88,16 @@ export async function GET(request: Request) {
     // Header row
     csvRows.push('Email,Name,Qualified,Lead Magnet,Funnel Slug,Captured At');
 
-    // Data rows
+    // Data rows - using secure CSV escaping to prevent formula injection
     for (const lead of leads) {
       const funnelPages = lead.funnel_pages as FunnelPageJoin;
       const funnelPage = funnelPages[0];
       const row = [
-        escapeCSV(lead.email),
-        escapeCSV(lead.name || ''),
+        escapeCSVValue(lead.email),
+        escapeCSVValue(lead.name),
         lead.qualified === null ? 'N/A' : lead.qualified ? 'Yes' : 'No',
-        escapeCSV(funnelPage?.lead_magnets?.[0]?.title || ''),
-        escapeCSV(funnelPage?.slug || ''),
+        escapeCSVValue(funnelPage?.lead_magnets?.[0]?.title),
+        escapeCSVValue(funnelPage?.slug),
         new Date(lead.created_at).toISOString(),
       ];
       csvRows.push(row.join(','));
@@ -116,12 +117,4 @@ export async function GET(request: Request) {
     console.error('Error in GET /api/leads/export:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
-}
-
-// Helper to escape CSV values
-function escapeCSV(value: string): string {
-  if (value.includes(',') || value.includes('"') || value.includes('\n')) {
-    return `"${value.replace(/"/g, '""')}"`;
-  }
-  return value;
 }

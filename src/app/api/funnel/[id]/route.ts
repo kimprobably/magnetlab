@@ -3,6 +3,11 @@ import { auth } from '@/lib/auth';
 import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
 import { slugify } from '@/lib/utils';
 import type { FunnelPageRow, QualificationQuestionRow } from '@/lib/types/funnel';
+import {
+  validateVideoEmbedUrl,
+  validateCalendlyUrl,
+  validateTextLength,
+} from '@/lib/utils/security';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -100,6 +105,39 @@ export async function PUT(request: Request, { params }: RouteParams) {
       );
     }
 
+    // Validate text field lengths
+    const textValidations = [
+      validateTextLength(optinHeadline, 'Headline', 200),
+      validateTextLength(optinSubline, 'Subline', 500),
+      validateTextLength(optinButtonText, 'Button text', 50),
+      validateTextLength(optinTrustText, 'Trust text', 200),
+      validateTextLength(thankyouHeadline, 'Thank you headline', 200),
+      validateTextLength(thankyouSubline, 'Thank you subline', 500),
+      validateTextLength(rejectionMessage, 'Rejection message', 1000),
+    ];
+
+    for (const validation of textValidations) {
+      if (!validation.valid) {
+        return NextResponse.json({ error: validation.error }, { status: 400 });
+      }
+    }
+
+    // Validate video embed URL (XSS prevention)
+    if (vslEmbedUrl) {
+      const videoValidation = validateVideoEmbedUrl(vslEmbedUrl);
+      if (!videoValidation.valid) {
+        return NextResponse.json({ error: videoValidation.error }, { status: 400 });
+      }
+    }
+
+    // Validate Calendly URL
+    if (calendlyUrl) {
+      const calendlyValidation = validateCalendlyUrl(calendlyUrl);
+      if (!calendlyValidation.valid) {
+        return NextResponse.json({ error: calendlyValidation.error }, { status: 400 });
+      }
+    }
+
     // Build update data
     const updateData: Partial<FunnelPageRow> = {};
 
@@ -151,7 +189,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
     if (updateError) {
       console.error('Error updating funnel page:', updateError);
       return NextResponse.json(
-        { error: `Failed to update funnel page: ${updateError.message}` },
+        { error: 'Failed to update funnel page' },
         { status: 500 }
       );
     }
@@ -248,7 +286,7 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     if (deleteError) {
       console.error('Error deleting funnel page:', deleteError);
       return NextResponse.json(
-        { error: `Failed to delete funnel page: ${deleteError.message}` },
+        { error: 'Failed to delete funnel page' },
         { status: 500 }
       );
     }

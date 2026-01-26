@@ -1,9 +1,26 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
+import { checkRateLimit, getRateLimitKey } from '@/lib/utils/security';
 
 // POST /api/leads/qualify - Submit qualification answers (public endpoint)
 export async function POST(request: Request) {
   try {
+    // Rate limiting for public endpoint (20 requests per minute per IP)
+    const rateLimitKey = getRateLimitKey(request, 'leads:qualify');
+    const rateLimit = checkRateLimit(rateLimitKey, { windowMs: 60000, maxRequests: 20 });
+
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please try again later.' },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(Math.ceil((rateLimit.resetTime - Date.now()) / 1000)),
+          },
+        }
+      );
+    }
+
     const body = await request.json();
     const { leadId, funnelPageId, answers } = body;
 
@@ -12,6 +29,23 @@ export async function POST(request: Request) {
         { error: 'leadId, funnelPageId, and answers are required' },
         { status: 400 }
       );
+    }
+
+    // Validate answers is an object with boolean values
+    if (typeof answers !== 'object' || answers === null) {
+      return NextResponse.json(
+        { error: 'answers must be an object' },
+        { status: 400 }
+      );
+    }
+
+    for (const [key, value] of Object.entries(answers)) {
+      if (typeof value !== 'boolean') {
+        return NextResponse.json(
+          { error: `Answer for ${key} must be a boolean` },
+          { status: 400 }
+        );
+      }
     }
 
     const supabase = createSupabaseAdminClient();

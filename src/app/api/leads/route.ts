@@ -2,6 +2,14 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
 import type { LeadRow, LeadWebhookPayload } from '@/lib/types/funnel';
+import {
+  checkRateLimit,
+  getRateLimitKey,
+  validateEmail,
+  validateWebhookUrl,
+  validatePaginationLimit,
+  sanitizeErrorMessage,
+} from '@/lib/utils/security';
 
 // GET /api/leads - List all leads for the current user
 export async function GET(request: Request) {
@@ -12,8 +20,9 @@ export async function GET(request: Request) {
     }
 
     const { searchParams } = new URL(request.url);
-    const limit = parseInt(searchParams.get('limit') || '50', 10);
-    const offset = parseInt(searchParams.get('offset') || '0', 10);
+    const limitParam = parseInt(searchParams.get('limit') || '50', 10);
+    const limit = validatePaginationLimit(limitParam, 100);
+    const offset = Math.max(0, parseInt(searchParams.get('offset') || '0', 10));
     const funnelPageId = searchParams.get('funnelPageId');
     const qualified = searchParams.get('qualified');
 
@@ -72,6 +81,23 @@ export async function GET(request: Request) {
 // POST /api/leads - Capture a new lead (public endpoint, no auth required)
 export async function POST(request: Request) {
   try {
+    // Rate limiting for public endpoint (30 requests per minute per IP)
+    const rateLimitKey = getRateLimitKey(request, 'leads:capture');
+    const rateLimit = checkRateLimit(rateLimitKey, { windowMs: 60000, maxRequests: 30 });
+
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please try again later.' },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(Math.ceil((rateLimit.resetTime - Date.now()) / 1000)),
+            'X-RateLimit-Remaining': '0',
+          },
+        }
+      );
+    }
+
     const body = await request.json();
     const { funnelPageId, email, name } = body;
 
@@ -82,10 +108,14 @@ export async function POST(request: Request) {
       );
     }
 
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    // Validate email format with stricter validation
+    if (!validateEmail(email)) {
       return NextResponse.json({ error: 'Invalid email format' }, { status: 400 });
+    }
+
+    // Validate name length if provided
+    if (name && name.length > 200) {
+      return NextResponse.json({ error: 'Name too long' }, { status: 400 });
     }
 
     const supabase = createSupabaseAdminClient();
@@ -222,6 +252,13 @@ async function triggerWebhooks(
     // Fire webhooks in parallel (fire-and-forget)
     const webhookPromises = webhooks.map(async (webhook) => {
       try {
+        // Validate webhook URL to prevent SSRF
+        const urlValidation = validateWebhookUrl(webhook.webhook_url);
+        if (!urlValidation.valid) {
+          console.error(`Webhook ${webhook.id} skipped: ${urlValidation.error}`);
+          return { webhookId: webhook.id, success: false, error: urlValidation.error };
+        }
+
         const response = await fetch(webhook.webhook_url, {
           method: 'POST',
           headers: {

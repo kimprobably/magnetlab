@@ -3,6 +3,13 @@ import { auth } from '@/lib/auth';
 import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
 import { slugify } from '@/lib/utils';
 import type { FunnelPageRow, QualificationQuestionRow } from '@/lib/types/funnel';
+import {
+  validateVideoEmbedUrl,
+  validateCalendlyUrl,
+  validateSlug,
+  validateTextLength,
+  validatePaginationLimit,
+} from '@/lib/utils/security';
 
 // GET /api/funnel - List all funnel pages for the current user
 export async function GET(request: Request) {
@@ -13,8 +20,9 @@ export async function GET(request: Request) {
     }
 
     const { searchParams } = new URL(request.url);
-    const limit = parseInt(searchParams.get('limit') || '20', 10);
-    const offset = parseInt(searchParams.get('offset') || '0', 10);
+    const limitParam = parseInt(searchParams.get('limit') || '20', 10);
+    const limit = validatePaginationLimit(limitParam, 100);
+    const offset = Math.max(0, parseInt(searchParams.get('offset') || '0', 10));
     const leadMagnetId = searchParams.get('leadMagnetId');
 
     const supabase = createSupabaseAdminClient();
@@ -97,6 +105,39 @@ export async function POST(request: Request) {
       );
     }
 
+    // Validate text field lengths
+    const textValidations = [
+      validateTextLength(optinHeadline, 'Headline', 200),
+      validateTextLength(optinSubline, 'Subline', 500),
+      validateTextLength(optinButtonText, 'Button text', 50),
+      validateTextLength(optinTrustText, 'Trust text', 200),
+      validateTextLength(thankyouHeadline, 'Thank you headline', 200),
+      validateTextLength(thankyouSubline, 'Thank you subline', 500),
+      validateTextLength(rejectionMessage, 'Rejection message', 1000),
+    ];
+
+    for (const validation of textValidations) {
+      if (!validation.valid) {
+        return NextResponse.json({ error: validation.error }, { status: 400 });
+      }
+    }
+
+    // Validate video embed URL (XSS prevention)
+    if (vslEmbedUrl) {
+      const videoValidation = validateVideoEmbedUrl(vslEmbedUrl);
+      if (!videoValidation.valid) {
+        return NextResponse.json({ error: videoValidation.error }, { status: 400 });
+      }
+    }
+
+    // Validate Calendly URL
+    if (calendlyUrl) {
+      const calendlyValidation = validateCalendlyUrl(calendlyUrl);
+      if (!calendlyValidation.valid) {
+        return NextResponse.json({ error: calendlyValidation.error }, { status: 400 });
+      }
+    }
+
     const supabase = createSupabaseAdminClient();
 
     // Verify the lead magnet exists and belongs to the user
@@ -172,7 +213,7 @@ export async function POST(request: Request) {
     if (createError) {
       console.error('Error creating funnel page:', createError);
       return NextResponse.json(
-        { error: `Failed to create funnel page: ${createError.message}` },
+        { error: 'Failed to create funnel page' },
         { status: 500 }
       );
     }

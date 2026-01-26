@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
 import Anthropic from '@anthropic-ai/sdk';
 import type { GenerateFunnelContentResponse } from '@/lib/types/funnel';
+import { checkRateLimit } from '@/lib/utils/security';
 
 const anthropic = new Anthropic();
 
@@ -12,6 +13,22 @@ export async function POST(request: Request) {
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Rate limiting for AI generation (5 requests per minute per user to control costs)
+    const rateLimitKey = `funnel:generate:${session.user.id}`;
+    const rateLimit = checkRateLimit(rateLimitKey, { windowMs: 60000, maxRequests: 5 });
+
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Too many generation requests. Please try again in a minute.' },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(Math.ceil((rateLimit.resetTime - Date.now()) / 1000)),
+          },
+        }
+      );
     }
 
     const body = await request.json();
