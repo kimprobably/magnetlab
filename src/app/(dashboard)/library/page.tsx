@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Plus, ExternalLink, Calendar, Eye } from 'lucide-react';
+import { Plus, ExternalLink, Calendar, Eye, Globe, FileText } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { createSupabaseServerClient } from '@/lib/utils/supabase-server';
 import { ARCHETYPE_NAMES } from '@/lib/types/lead-magnet';
@@ -16,7 +16,14 @@ export default async function LibraryPage() {
 
   const { data: leadMagnets } = await supabase
     .from('lead_magnets')
-    .select('*')
+    .select(`
+      *,
+      funnel_pages (
+        id,
+        slug,
+        published
+      )
+    `)
     .eq('user_id', session?.user?.id)
     .order('created_at', { ascending: false });
 
@@ -84,6 +91,41 @@ export default async function LibraryPage() {
                     <Eye className="h-3 w-3" />
                     Thumbnail
                   </span>
+                )}
+                {(lm.funnel_pages as Array<{ id: string; slug: string; published: boolean }> | null)?.length ? (
+                  <span className={`flex items-center gap-1 text-xs ${
+                    (lm.funnel_pages as Array<{ published: boolean }>)[0]?.published
+                      ? 'text-green-500'
+                      : 'text-muted-foreground'
+                  }`}>
+                    <Globe className="h-3 w-3" />
+                    Funnel
+                  </span>
+                ) : null}
+              </div>
+
+              {/* Funnel CTA */}
+              <div className="mt-4 pt-4 border-t border-border">
+                {(lm.funnel_pages as Array<{ id: string; slug: string; published: boolean }> | null)?.length ? (
+                  <Link
+                    href={`/library/${lm.id}/funnel`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex items-center justify-center gap-2 w-full py-2 text-sm font-medium
+                               text-primary hover:text-primary/80 transition-colors"
+                  >
+                    <FileText className="h-4 w-4" />
+                    Edit Funnel
+                  </Link>
+                ) : (
+                  <Link
+                    href={`/library/${lm.id}/funnel`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex items-center justify-center gap-2 w-full py-2 text-sm font-medium
+                               bg-primary/10 text-primary hover:bg-primary/20 rounded-lg transition-colors"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Create Funnel
+                  </Link>
                 )}
               </div>
             </Link>

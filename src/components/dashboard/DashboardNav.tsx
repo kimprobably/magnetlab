@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Magnet, Library, BarChart3, Settings, Plus, LogOut, FileText } from 'lucide-react';
+import { Magnet, Library, BarChart3, Settings, Plus, LogOut, FileText, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface User {
@@ -18,6 +18,7 @@ interface DashboardNavProps {
 const navItems = [
   { href: '/create', label: 'Create', icon: Plus },
   { href: '/library', label: 'Library', icon: Library },
+  { href: '/leads', label: 'Leads', icon: Users },
   { href: '/swipe-file', label: 'Swipe File', icon: FileText },
   { href: '/analytics', label: 'Analytics', icon: BarChart3 },
   { href: '/settings', label: 'Settings', icon: Settings },
