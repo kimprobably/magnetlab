@@ -4,6 +4,9 @@
 // FUNNEL PAGE
 // ============================================
 
+export type FunnelTheme = 'dark' | 'light' | 'custom';
+export type BackgroundStyle = 'solid' | 'gradient' | 'pattern';
+
 export interface FunnelPage {
   id: string;
   leadMagnetId: string;
@@ -23,6 +26,12 @@ export interface FunnelPage {
   calendlyUrl: string | null;
   qualificationPassMessage: string;
   qualificationFailMessage: string;
+
+  // Theme configuration
+  theme: FunnelTheme;
+  primaryColor: string;
+  backgroundStyle: BackgroundStyle;
+  logoUrl: string | null;
 
   // Publishing state
   isPublished: boolean;
@@ -111,6 +120,10 @@ export interface UpdateFunnelPagePayload {
   calendlyUrl?: string | null;
   qualificationPassMessage?: string;
   qualificationFailMessage?: string;
+  theme?: FunnelTheme;
+  primaryColor?: string;
+  backgroundStyle?: BackgroundStyle;
+  logoUrl?: string | null;
 }
 
 export interface CreateQuestionPayload {
@@ -236,6 +249,10 @@ export interface FunnelPageRow {
   calendly_url: string | null;
   qualification_pass_message: string;
   qualification_fail_message: string;
+  theme: string;
+  primary_color: string;
+  background_style: string;
+  logo_url: string | null;
   is_published: boolean;
   published_at: string | null;
   created_at: string;
@@ -296,6 +313,10 @@ export function funnelPageFromRow(row: FunnelPageRow): FunnelPage {
     calendlyUrl: row.calendly_url,
     qualificationPassMessage: row.qualification_pass_message,
     qualificationFailMessage: row.qualification_fail_message,
+    theme: (row.theme || 'dark') as FunnelTheme,
+    primaryColor: row.primary_color || '#8b5cf6',
+    backgroundStyle: (row.background_style || 'solid') as BackgroundStyle,
+    logoUrl: row.logo_url,
     isPublished: row.is_published,
     publishedAt: row.published_at,
     createdAt: row.created_at,

@@ -214,7 +214,19 @@ export async function processContentExtraction(
   concept: LeadMagnetConcept,
   answers: Record<string, string>
 ): Promise<ExtractedContent> {
+  console.log('[processContentExtraction] Starting with archetype:', archetype);
+  console.log('[processContentExtraction] Concept:', concept?.title);
+  console.log('[processContentExtraction] Answer keys:', Object.keys(answers || {}));
+
+  if (!archetype || !concept || !answers) {
+    throw new Error(`Missing required parameters: archetype=${!!archetype}, concept=${!!concept}, answers=${!!answers}`);
+  }
+
   const questions = ARCHETYPE_QUESTIONS[archetype];
+  if (!questions || questions.length === 0) {
+    throw new Error(`No questions found for archetype: ${archetype}`);
+  }
+
   const qaPairs = questions
     .map((q) => `Q: ${q.question}\nA: ${answers[q.id] || 'Not provided'}`)
     .join('\n\n');
@@ -233,36 +245,58 @@ ${qaPairs}
 Now structure this into a deliverable. Provide:
 1. title: Final polished title
 2. format: Delivery format (Google Doc, Sheet, etc.)
-3. structure: Array of sections, each with sectionName and contents array
+3. structure: Array of sections, each with:
+   - sectionName: Clear section heading
+   - introduction: 2-3 sentences explaining what this section covers and why it matters
+   - contents: Array of content items, where EACH item is a fully-fledged explanation (3-5 sentences minimum), NOT a one-line checklist item. Include:
+     * The what: What is this concept/step/element?
+     * The why: Why does this matter? What's the reasoning?
+     * The how: How do you actually implement or apply this?
+     * An example or context where relevant
+   - keyTakeaway: The main insight from this section in 1-2 sentences
 4. nonObviousInsight: The "aha" moment that makes this valuable
 5. personalExperience: Where the creator's unique experience shows
 6. proof: Specific numbers, results, or evidence included
-7. commonMistakes: Array of mistakes this helps avoid
+7. commonMistakes: Array of mistakes this helps avoid (with explanation of WHY each is a mistake)
 8. differentiation: What makes this different from generic advice
+
+IMPORTANT: This is NOT a checklist. Each piece of content should teach, explain, and provide context. Write as if you're explaining to someone who needs to understand the reasoning, not just see a list of items. Substance over brevity.
 
 Also evaluate against the 5 viral criteria and note any weaknesses.
 
 Return ONLY valid JSON.`;
 
-  const response = await getAnthropicClient().messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 4000,
-    messages: [{ role: 'user', content: prompt }],
-  });
-
-  const textContent = response.content.find((block) => block.type === 'text');
-  if (!textContent || textContent.type !== 'text') {
-    throw new Error('No text response from Claude');
-  }
+  console.log('[processContentExtraction] Calling Anthropic API...');
 
   try {
+    const response = await getAnthropicClient().messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 4000,
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    console.log('[processContentExtraction] Anthropic API responded');
+
+    const textContent = response.content.find((block) => block.type === 'text');
+    if (!textContent || textContent.type !== 'text') {
+      throw new Error('No text response from Claude');
+    }
+
+    console.log('[processContentExtraction] Parsing JSON response...');
+
     const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]) as ExtractedContent;
+      const result = JSON.parse(jsonMatch[0]) as ExtractedContent;
+      console.log('[processContentExtraction] Successfully parsed response');
+      return result;
     }
     return JSON.parse(textContent.text) as ExtractedContent;
-  } catch {
-    throw new Error('Failed to parse content extraction response');
+  } catch (error) {
+    console.error('[processContentExtraction] Error:', error);
+    if (error instanceof Error) {
+      throw new Error(`Content extraction failed: ${error.message}`);
+    }
+    throw new Error('Content extraction failed with unknown error');
   }
 }
 

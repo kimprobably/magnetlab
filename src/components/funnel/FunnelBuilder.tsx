@@ -5,9 +5,10 @@ import { Loader2, Sparkles } from 'lucide-react';
 import { OptinPageEditor } from './OptinPageEditor';
 import { ThankyouPageEditor } from './ThankyouPageEditor';
 import { QuestionsManager } from './QuestionsManager';
+import { ThemeEditor } from './ThemeEditor';
 import { FunnelPreview } from './FunnelPreview';
 import { PublishControls } from './PublishControls';
-import type { FunnelPage, QualificationQuestion, GeneratedOptinContent } from '@/lib/types/funnel';
+import type { FunnelPage, QualificationQuestion, GeneratedOptinContent, FunnelTheme, BackgroundStyle } from '@/lib/types/funnel';
 import type { LeadMagnet } from '@/lib/types/lead-magnet';
 
 interface FunnelBuilderProps {
@@ -17,7 +18,7 @@ interface FunnelBuilderProps {
   username: string | null;
 }
 
-type TabType = 'optin' | 'thankyou' | 'questions';
+type TabType = 'optin' | 'thankyou' | 'questions' | 'theme';
 
 export function FunnelBuilder({
   leadMagnet,
@@ -46,6 +47,12 @@ export function FunnelBuilder({
   const [calendlyUrl, setCalendlyUrl] = useState(existingFunnel?.calendlyUrl || '');
   const [qualificationPassMessage, setQualificationPassMessage] = useState(existingFunnel?.qualificationPassMessage || 'Great! Book a call below.');
   const [qualificationFailMessage, setQualificationFailMessage] = useState(existingFunnel?.qualificationFailMessage || 'Thanks for your interest!');
+
+  // Form state for theme
+  const [theme, setTheme] = useState<FunnelTheme>(existingFunnel?.theme || 'dark');
+  const [primaryColor, setPrimaryColor] = useState(existingFunnel?.primaryColor || '#8b5cf6');
+  const [backgroundStyle, setBackgroundStyle] = useState<BackgroundStyle>(existingFunnel?.backgroundStyle || 'solid');
+  const [logoUrl, setLogoUrl] = useState<string | null>(existingFunnel?.logoUrl || null);
 
   function generateSlug(title: string): string {
     return title
@@ -85,6 +92,7 @@ export function FunnelBuilder({
   };
 
   const handleSave = async () => {
+    console.log('handleSave called, funnel:', funnel?.id, 'slug:', slug, 'leadMagnetId:', leadMagnet.id);
     setSaving(true);
     setError(null);
 
@@ -102,11 +110,18 @@ export function FunnelBuilder({
         calendlyUrl: calendlyUrl || null,
         qualificationPassMessage,
         qualificationFailMessage,
+        theme,
+        primaryColor,
+        backgroundStyle,
+        logoUrl,
       };
+
+      console.log('Saving funnel with payload:', payload);
 
       let response;
       if (funnel) {
         // Update existing
+        console.log('Updating existing funnel:', funnel.id);
         response = await fetch(`/api/funnel/${funnel.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -114,6 +129,7 @@ export function FunnelBuilder({
         });
       } else {
         // Create new
+        console.log('Creating new funnel');
         response = await fetch('/api/funnel', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -121,14 +137,26 @@ export function FunnelBuilder({
         });
       }
 
+      console.log('Response status:', response.status);
+
       if (!response.ok) {
         const data = await response.json();
+        console.error('Save failed:', data);
+
+        // If funnel already exists (409), reload to get the existing funnel
+        if (response.status === 409) {
+          window.location.reload();
+          return;
+        }
+
         throw new Error(data.error || 'Failed to save');
       }
 
       const { funnel: savedFunnel } = await response.json();
+      console.log('Funnel saved successfully:', savedFunnel);
       setFunnel(savedFunnel);
     } catch (err) {
+      console.error('Save error:', err);
       setError(err instanceof Error ? err.message : 'Failed to save');
     } finally {
       setSaving(false);
@@ -152,6 +180,7 @@ export function FunnelBuilder({
     { id: 'optin' as const, label: 'Opt-in Page' },
     { id: 'thankyou' as const, label: 'Thank-you Page' },
     { id: 'questions' as const, label: 'Qualification' },
+    { id: 'theme' as const, label: 'Theme' },
   ];
 
   return (
@@ -245,6 +274,19 @@ export function FunnelBuilder({
               }}
             />
           )}
+
+          {activeTab === 'theme' && (
+            <ThemeEditor
+              theme={theme}
+              setTheme={setTheme}
+              primaryColor={primaryColor}
+              setPrimaryColor={setPrimaryColor}
+              backgroundStyle={backgroundStyle}
+              setBackgroundStyle={setBackgroundStyle}
+              logoUrl={logoUrl}
+              setLogoUrl={setLogoUrl}
+            />
+          )}
         </div>
 
         {/* Save Button */}
@@ -274,6 +316,10 @@ export function FunnelBuilder({
           buttonText={optinButtonText}
           socialProof={optinSocialProof}
           questions={questions}
+          theme={theme}
+          primaryColor={primaryColor}
+          backgroundStyle={backgroundStyle}
+          logoUrl={logoUrl}
         />
 
         {funnel && (

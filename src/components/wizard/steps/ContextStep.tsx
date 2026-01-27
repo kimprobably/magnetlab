@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Loader2, Sparkles, FileText } from 'lucide-react';
+import { Loader2, Sparkles, FileText, Lightbulb, History } from 'lucide-react';
 import type { BusinessContext, BusinessType } from '@/lib/types/lead-magnet';
 import { BUSINESS_TYPE_LABELS } from '@/lib/types/lead-magnet';
 import { SmartImportTab } from './SmartImportTab';
@@ -11,10 +11,14 @@ type TabValue = 'smart' | 'manual';
 interface ContextStepProps {
   initialData: Partial<BusinessContext>;
   onSubmit: (context: BusinessContext) => void;
+  onCustomIdea?: (context: BusinessContext) => void;
+  onUseSavedIdeas?: () => void;
+  hasSavedIdeas?: boolean;
+  savedIdeasDate?: string | null;
   loading: boolean;
 }
 
-export function ContextStep({ initialData, onSubmit, loading }: ContextStepProps) {
+export function ContextStep({ initialData, onSubmit, onCustomIdea, onUseSavedIdeas, hasSavedIdeas, savedIdeasDate, loading }: ContextStepProps) {
   const [activeTab, setActiveTab] = useState<TabValue>('smart');
   const [hasExtracted, setHasExtracted] = useState(false);
   const [formData, setFormData] = useState<Partial<BusinessContext>>({
@@ -327,23 +331,96 @@ export function ContextStep({ initialData, onSubmit, loading }: ContextStepProps
           />
         </div>
 
-        <button
-          type="submit"
-          disabled={loading || !formData.businessDescription}
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
-        >
-          {loading ? (
+        {/* Choice Buttons */}
+        <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-4">
+          <p className="text-sm font-medium text-center">How would you like to proceed?</p>
+
+          {/* Use Saved Ideas - shown first if available */}
+          {hasSavedIdeas && onUseSavedIdeas && (
             <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Generating 10 lead magnet ideas...
-            </>
-          ) : (
-            <>
-              <Sparkles className="h-4 w-4" />
-              Generate Lead Magnet Ideas
+              <button
+                type="button"
+                disabled={loading}
+                onClick={onUseSavedIdeas}
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              >
+                <History className="h-4 w-4" />
+                Use Previously Generated Ideas
+              </button>
+              <p className="text-xs text-muted-foreground text-center">
+                Generated {savedIdeasDate ? new Date(savedIdeasDate).toLocaleDateString() : 'recently'}
+              </p>
+
+              <div className="relative flex items-center justify-center">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-border" />
+                </div>
+                <span className="relative bg-muted/30 px-2 text-xs text-muted-foreground">or</span>
+              </div>
             </>
           )}
-        </button>
+
+          <button
+            type="submit"
+            disabled={loading || !formData.businessDescription}
+            className={`flex w-full items-center justify-center gap-2 rounded-lg px-6 py-3 text-sm font-medium transition-colors disabled:opacity-50 ${
+              hasSavedIdeas
+                ? 'border border-border bg-background hover:bg-muted/50'
+                : 'bg-primary text-primary-foreground hover:bg-primary/90'
+            }`}
+          >
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Generating 10 lead magnet ideas...
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-4 w-4" />
+                Generate {hasSavedIdeas ? 'New' : '10 AI'} Ideas
+              </>
+            )}
+          </button>
+          <p className="text-xs text-muted-foreground text-center">
+            {hasSavedIdeas ? 'Create fresh concepts from your context' : 'Uses your context to create concepts'}
+          </p>
+
+          {onCustomIdea && (
+            <>
+              <div className="relative flex items-center justify-center">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-border" />
+                </div>
+                <span className="relative bg-muted/30 px-2 text-xs text-muted-foreground">or</span>
+              </div>
+
+              <button
+                type="button"
+                disabled={loading || !formData.businessDescription}
+                onClick={() => {
+                  if (!formData.businessDescription || !formData.businessType) return;
+                  onCustomIdea({
+                    businessDescription: formData.businessDescription,
+                    businessType: formData.businessType,
+                    credibilityMarkers: formData.credibilityMarkers || [],
+                    urgentPains: formData.urgentPains || [],
+                    templates: formData.templates || [],
+                    processes: formData.processes || [],
+                    tools: formData.tools || [],
+                    frequentQuestions: formData.frequentQuestions || [],
+                    results: formData.results || [],
+                    successExample: formData.successExample,
+                  });
+                }}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-background px-6 py-3 text-sm font-medium hover:bg-muted/50 disabled:opacity-50 transition-colors"
+              >
+                <Lightbulb className="h-4 w-4" />
+                I Have My Own Idea
+              </button>
+              <p className="text-xs text-muted-foreground text-center">Skip to entering your concept</p>
+            </>
+          )}
+        </div>
       </form>
       )}
     </div>

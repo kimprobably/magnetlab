@@ -98,23 +98,23 @@ export function ThankyouPageEditor({
         <div className="flex items-center gap-2">
           <Calendar className="h-4 w-4 text-blue-500" />
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-            Calendly Booking (Optional)
+            Calendar Booking (Optional)
           </h3>
         </div>
 
         <div>
           <label className="block text-sm font-medium mb-1.5">
-            Calendly URL
+            Booking URL
           </label>
           <input
             type="url"
             value={calendlyUrl}
             onChange={(e) => setCalendlyUrl(e.target.value)}
             className="w-full rounded-lg border border-border bg-muted/50 dark:bg-muted/20 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors"
-            placeholder="https://calendly.com/your-name/30min"
+            placeholder="https://cal.com/your-name/30min"
           />
           <p className="mt-1 text-xs text-muted-foreground">
-            Embed a Calendly widget for qualified leads to book calls
+            Supports Cal.com and Calendly URLs
           </p>
         </div>
       </div>

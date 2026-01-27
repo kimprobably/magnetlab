@@ -20,6 +20,10 @@ interface ThankyouPageProps {
   passMessage: string;
   failMessage: string;
   questions: Question[];
+  theme?: 'dark' | 'light';
+  primaryColor?: string;
+  backgroundStyle?: 'solid' | 'gradient' | 'pattern';
+  logoUrl?: string | null;
 }
 
 export function ThankyouPage({
@@ -31,12 +35,40 @@ export function ThankyouPage({
   passMessage,
   failMessage,
   questions,
+  theme = 'dark',
+  primaryColor = '#8b5cf6',
+  backgroundStyle = 'solid',
+  logoUrl,
 }: ThankyouPageProps) {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, 'yes' | 'no'>>({});
   const [qualificationComplete, setQualificationComplete] = useState(questions.length === 0);
   const [isQualified, setIsQualified] = useState<boolean | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Theme-based colors
+  const isDark = theme === 'dark';
+  const bgColor = isDark ? '#09090B' : '#FAFAFA';
+  const textColor = isDark ? '#FAFAFA' : '#09090B';
+  const mutedColor = isDark ? '#A1A1AA' : '#71717A';
+  const borderColor = isDark ? '#27272A' : '#E4E4E7';
+  const cardBg = isDark ? '#18181B' : '#FFFFFF';
+  const placeholderColor = isDark ? '#71717A' : '#A1A1AA';
+
+  // Background style
+  const getBackgroundStyle = () => {
+    if (backgroundStyle === 'gradient') {
+      return isDark
+        ? `linear-gradient(135deg, ${bgColor} 0%, #18181B 50%, ${bgColor} 100%)`
+        : `linear-gradient(135deg, ${bgColor} 0%, #FFFFFF 50%, ${bgColor} 100%)`;
+    }
+    if (backgroundStyle === 'pattern') {
+      return isDark
+        ? `radial-gradient(circle at 50% 50%, ${primaryColor}15 0%, transparent 50%), ${bgColor}`
+        : `radial-gradient(circle at 50% 50%, ${primaryColor}15 0%, transparent 50%), ${bgColor}`;
+    }
+    return bgColor;
+  };
 
   const currentQuestion = questions[currentQuestionIndex];
   const hasQuestions = questions.length > 0;
@@ -86,24 +118,36 @@ export function ThankyouPage({
   return (
     <div
       className="min-h-screen flex flex-col items-center px-4 py-12"
-      style={{ background: '#09090B' }}
+      style={{ background: getBackgroundStyle() }}
     >
       <div className="w-full max-w-2xl space-y-8">
         {/* Header */}
         <div className="text-center space-y-4">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full mb-4" style={{ background: '#18181B' }}>
-            <CheckCircle2 className="w-8 h-8" style={{ color: '#22C55E' }} />
+          {/* Logo */}
+          {logoUrl && (
+            <img
+              src={logoUrl}
+              alt="Logo"
+              className="h-12 w-auto mx-auto mb-4"
+            />
+          )}
+
+          <div
+            className="inline-flex items-center justify-center w-16 h-16 rounded-full mb-4"
+            style={{ background: cardBg }}
+          >
+            <CheckCircle2 className="w-8 h-8 text-green-500" />
           </div>
 
           <h1
             className="text-2xl md:text-3xl font-semibold"
-            style={{ color: '#FAFAFA' }}
+            style={{ color: textColor }}
           >
             {headline}
           </h1>
 
           {subline && (
-            <p style={{ color: '#A1A1AA' }}>
+            <p style={{ color: mutedColor }}>
               {subline}
             </p>
           )}
@@ -113,10 +157,10 @@ export function ThankyouPage({
         {hasQuestions && !qualificationComplete && (
           <div
             className="rounded-xl p-6 space-y-6"
-            style={{ background: '#18181B', border: '1px solid #27272A' }}
+            style={{ background: cardBg, border: `1px solid ${borderColor}` }}
           >
             <div className="flex items-center justify-between">
-              <p className="text-sm" style={{ color: '#71717A' }}>
+              <p className="text-sm" style={{ color: placeholderColor }}>
                 Question {currentQuestionIndex + 1} of {questions.length}
               </p>
               <div className="flex gap-1">
@@ -125,7 +169,7 @@ export function ThankyouPage({
                     key={i}
                     className="w-2 h-2 rounded-full"
                     style={{
-                      background: i <= currentQuestionIndex ? '#8B5CF6' : '#3F3F46',
+                      background: i <= currentQuestionIndex ? primaryColor : borderColor
                     }}
                   />
                 ))}
@@ -134,49 +178,26 @@ export function ThankyouPage({
 
             {submitting ? (
               <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin" style={{ color: '#8B5CF6' }} />
+                <Loader2 className="h-6 w-6 animate-spin" style={{ color: primaryColor }} />
               </div>
             ) : (
               <>
-                <p
-                  className="text-lg font-medium"
-                  style={{ color: '#FAFAFA' }}
-                >
+                <p className="text-lg font-medium" style={{ color: textColor }}>
                   {currentQuestion?.questionText}
                 </p>
 
                 <div className="flex gap-3">
                   <button
                     onClick={() => handleAnswer('yes')}
-                    className="flex-1 rounded-lg px-4 py-3 text-sm font-medium transition-colors"
-                    style={{
-                      background: '#18181B',
-                      border: '1px solid #27272A',
-                      color: '#FAFAFA',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = '#22C55E';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = '#27272A';
-                    }}
+                    className="flex-1 rounded-lg px-4 py-3 text-sm font-medium transition-colors hover:border-green-500"
+                    style={{ background: cardBg, border: `1px solid ${borderColor}`, color: textColor }}
                   >
                     Yes
                   </button>
                   <button
                     onClick={() => handleAnswer('no')}
-                    className="flex-1 rounded-lg px-4 py-3 text-sm font-medium transition-colors"
-                    style={{
-                      background: '#18181B',
-                      border: '1px solid #27272A',
-                      color: '#FAFAFA',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = '#F87171';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = '#27272A';
-                    }}
+                    className="flex-1 rounded-lg px-4 py-3 text-sm font-medium transition-colors hover:border-red-400"
+                    style={{ background: cardBg, border: `1px solid ${borderColor}`, color: textColor }}
                   >
                     No
                   </button>
@@ -189,21 +210,18 @@ export function ThankyouPage({
         {/* Qualification Result */}
         {qualificationComplete && isQualified !== null && (
           <div
-            className="rounded-xl p-6 text-center"
-            style={{
-              background: isQualified ? 'rgba(34, 197, 94, 0.1)' : 'rgba(248, 113, 113, 0.1)',
-              border: `1px solid ${isQualified ? 'rgba(34, 197, 94, 0.3)' : 'rgba(248, 113, 113, 0.3)'}`,
-            }}
+            className={`rounded-xl p-6 text-center ${
+              isQualified
+                ? 'bg-green-500/10 border border-green-500/30'
+                : 'bg-red-400/10 border border-red-400/30'
+            }`}
           >
             {isQualified ? (
-              <CheckCircle2 className="w-8 h-8 mx-auto mb-3" style={{ color: '#22C55E' }} />
+              <CheckCircle2 className="w-8 h-8 mx-auto mb-3 text-green-500" />
             ) : (
-              <XCircle className="w-8 h-8 mx-auto mb-3" style={{ color: '#F87171' }} />
+              <XCircle className="w-8 h-8 mx-auto mb-3 text-red-400" />
             )}
-            <p
-              className="font-medium"
-              style={{ color: isQualified ? '#22C55E' : '#F87171' }}
-            >
+            <p className={`font-medium ${isQualified ? 'text-green-500' : 'text-red-400'}`}>
               {isQualified ? passMessage : failMessage}
             </p>
           </div>
@@ -219,7 +237,7 @@ export function ThankyouPage({
           <div className="space-y-4">
             <h3
               className="text-lg font-semibold text-center"
-              style={{ color: '#FAFAFA' }}
+              style={{ color: textColor }}
             >
               Book Your Call
             </h3>
@@ -235,7 +253,7 @@ export function ThankyouPage({
           target="_blank"
           rel="noopener noreferrer"
           className="text-xs transition-colors hover:opacity-80"
-          style={{ color: '#52525B' }}
+          style={{ color: placeholderColor }}
         >
           Powered by MagnetLab
         </a>

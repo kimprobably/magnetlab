@@ -71,7 +71,11 @@ export default async function PublicOptinPage({ params }: PageProps) {
       optin_subline,
       optin_button_text,
       optin_social_proof,
-      is_published
+      is_published,
+      theme,
+      primary_color,
+      background_style,
+      logo_url
     `)
     .eq('user_id', user.id)
     .eq('slug', slug)
@@ -90,6 +94,10 @@ export default async function PublicOptinPage({ params }: PageProps) {
       socialProof={funnel.optin_social_proof}
       username={user.username}
       slug={funnel.slug}
+      theme={(funnel.theme as 'dark' | 'light') || 'dark'}
+      primaryColor={funnel.primary_color || '#8b5cf6'}
+      backgroundStyle={(funnel.background_style as 'solid' | 'gradient' | 'pattern') || 'solid'}
+      logoUrl={funnel.logo_url}
     />
   );
 }

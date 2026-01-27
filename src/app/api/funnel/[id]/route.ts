@@ -65,6 +65,10 @@ export async function PUT(request: Request, { params }: RouteParams) {
     if (body.calendlyUrl !== undefined) updateData.calendly_url = body.calendlyUrl;
     if (body.qualificationPassMessage !== undefined) updateData.qualification_pass_message = body.qualificationPassMessage;
     if (body.qualificationFailMessage !== undefined) updateData.qualification_fail_message = body.qualificationFailMessage;
+    if (body.theme !== undefined) updateData.theme = body.theme;
+    if (body.primaryColor !== undefined) updateData.primary_color = body.primaryColor;
+    if (body.backgroundStyle !== undefined) updateData.background_style = body.backgroundStyle;
+    if (body.logoUrl !== undefined) updateData.logo_url = body.logoUrl;
 
     // Check for slug collision if updating slug
     if (body.slug) {

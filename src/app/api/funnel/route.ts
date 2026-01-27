@@ -142,6 +142,10 @@ export async function POST(request: Request) {
         calendly_url: funnelData.calendlyUrl || null,
         qualification_pass_message: funnelData.qualificationPassMessage || 'Great! Book a call below.',
         qualification_fail_message: funnelData.qualificationFailMessage || 'Thanks for your interest!',
+        theme: funnelData.theme || 'dark',
+        primary_color: funnelData.primaryColor || '#8b5cf6',
+        background_style: funnelData.backgroundStyle || 'solid',
+        logo_url: funnelData.logoUrl || null,
       })
       .select()
       .single();

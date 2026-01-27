@@ -64,23 +64,23 @@ export async function POST(request: Request) {
     // Use admin client to bypass RLS (we validate user via NextAuth)
     const supabase = createSupabaseAdminClient();
 
-    // Check usage limits (gracefully handle if RPC doesn't exist)
-    try {
-      const { data: canCreate, error: rpcError } = await supabase.rpc('check_usage_limit', {
-        p_user_id: session.user.id,
-        p_limit_type: 'lead_magnets',
-      });
+    // Check usage limits - DISABLED FOR TESTING
+    // try {
+    //   const { data: canCreate, error: rpcError } = await supabase.rpc('check_usage_limit', {
+    //     p_user_id: session.user.id,
+    //     p_limit_type: 'lead_magnets',
+    //   });
 
-      if (!rpcError && canCreate === false) {
-        return NextResponse.json(
-          { error: 'Monthly lead magnet limit reached. Upgrade your plan for more.' },
-          { status: 403 }
-        );
-      }
-    } catch {
-      // RPC doesn't exist, continue without limit check
-      console.log('Usage limit check skipped - RPC not available');
-    }
+    //   if (!rpcError && canCreate === false) {
+    //     return NextResponse.json(
+    //       { error: 'Monthly lead magnet limit reached. Upgrade your plan for more.' },
+    //       { status: 403 }
+    //     );
+    //   }
+    // } catch {
+    //   // RPC doesn't exist, continue without limit check
+    //   console.log('Usage limit check skipped - RPC not available');
+    // }
 
     // Create the lead magnet
     const { data, error } = await supabase

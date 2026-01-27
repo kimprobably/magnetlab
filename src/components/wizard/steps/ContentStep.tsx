@@ -11,6 +11,18 @@ interface ContentStepProps {
   loading: boolean;
 }
 
+// Helper to normalize items that might be strings or objects with {item, explanation}
+function normalizeItem(item: string | { item?: string; explanation?: string }): string {
+  if (typeof item === 'string') return item;
+  if (item && typeof item === 'object') {
+    if (item.item && item.explanation) return `${item.item}: ${item.explanation}`;
+    if (item.item) return item.item;
+    if (item.explanation) return item.explanation;
+    return JSON.stringify(item);
+  }
+  return String(item);
+}
+
 export function ContentStep({ content, onApprove, onBack, loading }: ContentStepProps) {
   const [showFullContent, setShowFullContent] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -25,7 +37,7 @@ export function ContentStep({ content, onApprove, onBack, loading }: ContentStep
     content.structure.forEach((section) => {
       text += `## ${section.sectionName}\n\n`;
       section.contents.forEach((item) => {
-        text += `- ${item}\n`;
+        text += `- ${normalizeItem(item)}\n`;
       });
       text += '\n';
     });
@@ -39,7 +51,7 @@ export function ContentStep({ content, onApprove, onBack, loading }: ContentStep
     if (content.commonMistakes.length > 0) {
       text += `## Common Mistakes This Prevents\n\n`;
       content.commonMistakes.forEach((mistake) => {
-        text += `- ${mistake}\n`;
+        text += `- ${normalizeItem(mistake)}\n`;
       });
       text += '\n';
     }
@@ -109,7 +121,7 @@ export function ContentStep({ content, onApprove, onBack, loading }: ContentStep
                 {section.contents.map((item, itemIndex) => (
                   <li key={itemIndex} className="flex items-start gap-2 text-sm">
                     <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                    <span>{item}</span>
+                    <span>{normalizeItem(item)}</span>
                   </li>
                 ))}
               </ul>
@@ -141,7 +153,7 @@ export function ContentStep({ content, onApprove, onBack, loading }: ContentStep
                   key={index}
                   className="rounded-full bg-destructive/10 px-3 py-1 text-sm text-destructive"
                 >
-                  {mistake}
+                  {normalizeItem(mistake)}
                 </span>
               ))}
             </div>

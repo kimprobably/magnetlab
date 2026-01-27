@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Loader2, Sparkles, Check, AlertTriangle, Edit2, ChevronDown, ChevronUp } from 'lucide-react';
-import type { BusinessContext, ContentType, ExtractionResult, ConfidenceLevel } from '@/lib/types/lead-magnet';
+import type { BusinessContext, ExtractionResult, ConfidenceLevel } from '@/lib/types/lead-magnet';
 import { BUSINESS_TYPE_LABELS } from '@/lib/types/lead-magnet';
 
 interface SmartImportTabProps {
@@ -10,13 +10,6 @@ interface SmartImportTabProps {
 }
 
 type ExtractionState = 'idle' | 'extracting' | 'review' | 'error';
-
-const CONTENT_TYPES: { value: ContentType; label: string }[] = [
-  { value: 'linkedin', label: 'LinkedIn Profile' },
-  { value: 'offer-doc', label: 'Offer Doc' },
-  { value: 'sales-page', label: 'Sales Page' },
-  { value: 'other', label: 'Other' },
-];
 
 const LOADING_MESSAGES = [
   'Analyzing your content...',
@@ -28,7 +21,6 @@ const LOADING_MESSAGES = [
 
 export function SmartImportTab({ onExtracted }: SmartImportTabProps) {
   const [content, setContent] = useState('');
-  const [contentType, setContentType] = useState<ContentType>('other');
   const [state, setState] = useState<ExtractionState>('idle');
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ExtractionResult | null>(null);
@@ -62,7 +54,7 @@ export function SmartImportTab({ onExtracted }: SmartImportTabProps) {
       const response = await fetch('/api/brand-kit/extract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content, contentType }),
+        body: JSON.stringify({ content, contentType: 'other' }),
       });
 
       if (!response.ok) {
@@ -243,29 +235,6 @@ export function SmartImportTab({ onExtracted }: SmartImportTabProps) {
           Paste any content that describes your business - offer docs, LinkedIn profiles, sales pages, or anything else.
           We&apos;ll extract the key details automatically.
         </p>
-      </div>
-
-      {/* Content Type Selector */}
-      <div>
-        <label className="block text-xs font-medium text-muted-foreground mb-2">
-          Content Type (optional)
-        </label>
-        <div className="flex flex-wrap gap-2">
-          {CONTENT_TYPES.map((type) => (
-            <button
-              key={type.value}
-              type="button"
-              onClick={() => setContentType(type.value)}
-              className={`px-3 py-1.5 text-sm rounded-md border transition-colors ${
-                contentType === type.value
-                  ? 'bg-primary/10 border-primary text-primary'
-                  : 'bg-background border-border text-muted-foreground hover:border-muted-foreground/50'
-              }`}
-            >
-              {type.label}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* Textarea */}

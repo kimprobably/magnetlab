@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { User, CreditCard, Loader2, Check, Link2, Eye, EyeOff, CheckCircle, XCircle } from 'lucide-react';
 import { PRICING_PLANS } from '@/lib/types/integrations';
+import { UsernameSettings } from '@/components/settings/UsernameSettings';
 
 interface Integration {
   service: string;
@@ -17,6 +18,7 @@ interface SettingsContentProps {
     email?: string | null;
     image?: string | null;
   } | null;
+  username: string | null;
   subscription: {
     plan: string;
     status: string;
@@ -35,6 +37,7 @@ interface SettingsContentProps {
 
 export function SettingsContent({
   user,
+  username,
   subscription,
   brandKit,
   usage,
@@ -153,7 +156,7 @@ export function SettingsContent({
             <User className="h-5 w-5 text-primary" />
             <h2 className="text-lg font-semibold">Profile</h2>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 mb-6">
             {user?.image ? (
               <img src={user.image} alt={user.name || ''} className="h-16 w-16 rounded-full" />
             ) : (
@@ -165,6 +168,11 @@ export function SettingsContent({
               <p className="font-medium">{user?.name}</p>
               <p className="text-sm text-muted-foreground">{user?.email}</p>
             </div>
+          </div>
+
+          {/* Username Settings */}
+          <div className="border-t pt-6">
+            <UsernameSettings currentUsername={username} />
           </div>
         </div>
 

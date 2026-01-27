@@ -1,5 +1,5 @@
 // API Route: Qualification Questions
-// GET, POST /api/funnel/[id]/questions
+// GET, POST, PATCH /api/funnel/[id]/questions
 
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
@@ -131,5 +131,69 @@ export async function POST(request: Request, { params }: RouteParams) {
   } catch (error) {
     console.error('Create question error:', error);
     return NextResponse.json({ error: 'Failed to create question' }, { status: 500 });
+  }
+}
+
+// PATCH - Reorder questions (bulk update)
+export async function PATCH(request: Request, { params }: RouteParams) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { id } = await params;
+    const body = await request.json();
+    const supabase = createSupabaseAdminClient();
+
+    // Validate request body
+    if (!body.questionIds || !Array.isArray(body.questionIds)) {
+      return NextResponse.json(
+        { error: 'questionIds array is required' },
+        { status: 400 }
+      );
+    }
+
+    // Verify funnel ownership
+    const { data: funnel, error: funnelError } = await supabase
+      .from('funnel_pages')
+      .select('id')
+      .eq('id', id)
+      .eq('user_id', session.user.id)
+      .single();
+
+    if (funnelError || !funnel) {
+      return NextResponse.json({ error: 'Funnel page not found' }, { status: 404 });
+    }
+
+    // Update each question's order
+    const updates = body.questionIds.map((questionId: string, index: number) =>
+      supabase
+        .from('qualification_questions')
+        .update({ question_order: index })
+        .eq('id', questionId)
+        .eq('funnel_page_id', id)
+    );
+
+    await Promise.all(updates);
+
+    // Fetch updated questions
+    const { data, error } = await supabase
+      .from('qualification_questions')
+      .select('*')
+      .eq('funnel_page_id', id)
+      .order('question_order', { ascending: true });
+
+    if (error) {
+      console.error('Reorder questions error:', error);
+      return NextResponse.json({ error: 'Failed to reorder questions' }, { status: 500 });
+    }
+
+    const questions = (data as QualificationQuestionRow[]).map(qualificationQuestionFromRow);
+
+    return NextResponse.json({ questions });
+  } catch (error) {
+    console.error('Reorder questions error:', error);
+    return NextResponse.json({ error: 'Failed to reorder questions' }, { status: 500 });
   }
 }

@@ -41,9 +41,17 @@ export default async function SettingsPage() {
     .select('service, is_active, last_verified_at')
     .eq('user_id', session?.user?.id);
 
+  // Get username
+  const { data: userData } = await supabase
+    .from('users')
+    .select('username')
+    .eq('id', session?.user?.id)
+    .single();
+
   return (
     <SettingsContent
       user={session?.user || null}
+      username={userData?.username || null}
       subscription={subscription}
       brandKit={brandKit}
       usage={usage}

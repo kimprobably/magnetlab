@@ -4,7 +4,25 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
-import { funnelLeadFromRow, type FunnelLeadRow } from '@/lib/types/funnel';
+
+interface LeadWithFunnel {
+  id: string;
+  email: string;
+  name: string | null;
+  is_qualified: boolean | null;
+  qualification_answers: Record<string, string> | null;
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  created_at: string;
+  funnel_pages: {
+    slug: string;
+    optin_headline: string;
+    lead_magnets: {
+      title: string;
+    } | null;
+  };
+}
 
 export async function GET(request: Request) {
   try {
@@ -17,14 +35,33 @@ export async function GET(request: Request) {
     const funnelId = searchParams.get('funnelId');
     const leadMagnetId = searchParams.get('leadMagnetId');
     const qualified = searchParams.get('qualified');
+    const search = searchParams.get('search');
     const limit = parseInt(searchParams.get('limit') || '50');
     const offset = parseInt(searchParams.get('offset') || '0');
 
     const supabase = createSupabaseAdminClient();
 
+    // Build query with funnel info
     let query = supabase
       .from('funnel_leads')
-      .select('*', { count: 'exact' })
+      .select(`
+        id,
+        email,
+        name,
+        is_qualified,
+        qualification_answers,
+        utm_source,
+        utm_medium,
+        utm_campaign,
+        created_at,
+        funnel_pages!inner (
+          slug,
+          optin_headline,
+          lead_magnets (
+            title
+          )
+        )
+      `, { count: 'exact' })
       .eq('user_id', session.user.id)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
@@ -43,6 +80,10 @@ export async function GET(request: Request) {
       query = query.eq('is_qualified', false);
     }
 
+    if (search) {
+      query = query.or(`email.ilike.%${search}%,name.ilike.%${search}%`);
+    }
+
     const { data, error, count } = await query;
 
     if (error) {
@@ -50,7 +91,21 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Failed to fetch leads' }, { status: 500 });
     }
 
-    const leads = (data as FunnelLeadRow[]).map(funnelLeadFromRow);
+    // Transform to include funnel info
+    const leads = (data as unknown as LeadWithFunnel[]).map((lead) => ({
+      id: lead.id,
+      email: lead.email,
+      name: lead.name,
+      isQualified: lead.is_qualified,
+      qualificationAnswers: lead.qualification_answers,
+      utmSource: lead.utm_source,
+      utmMedium: lead.utm_medium,
+      utmCampaign: lead.utm_campaign,
+      createdAt: lead.created_at,
+      funnelSlug: lead.funnel_pages?.slug || null,
+      funnelHeadline: lead.funnel_pages?.optin_headline || null,
+      leadMagnetTitle: lead.funnel_pages?.lead_magnets?.title || null,
+    }));
 
     return NextResponse.json({
       leads,

@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ContextStep } from './steps/ContextStep';
 import { IdeationStep } from './steps/IdeationStep';
+import { CustomIdeaStep } from './steps/CustomIdeaStep';
 import { ExtractionStep } from './steps/ExtractionStep';
 import { ContentStep } from './steps/ContentStep';
 import { PostStep } from './steps/PostStep';
@@ -32,12 +33,57 @@ const INITIAL_STATE: WizardState = {
   extractedContent: null,
   postResult: null,
   selectedPostIndex: null,
+  isCustomIdea: false,
+  customConcept: null,
 };
 
 export function WizardContainer() {
   const [state, setState] = useState<WizardState>(INITIAL_STATE);
   const [generating, setGenerating] = useState<GeneratingState>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [loadingBrandKit, setLoadingBrandKit] = useState(true);
+  const [savedIdeation, setSavedIdeation] = useState<IdeationResult | null>(null);
+  const [ideationGeneratedAt, setIdeationGeneratedAt] = useState<string | null>(null);
+
+  // Load saved brand kit and ideation on mount
+  useEffect(() => {
+    async function loadBrandKit() {
+      try {
+        const response = await fetch('/api/brand-kit');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.brandKit) {
+            const bk = data.brandKit;
+            // Convert snake_case API response to camelCase BusinessContext
+            const brandKit: Partial<BusinessContext> = {
+              businessDescription: bk.business_description || '',
+              businessType: bk.business_type || 'coach-consultant',
+              credibilityMarkers: bk.credibility_markers || [],
+              urgentPains: bk.urgent_pains || [],
+              templates: bk.templates || [],
+              processes: bk.processes || [],
+              tools: bk.tools || [],
+              frequentQuestions: bk.frequent_questions || [],
+              results: bk.results || [],
+              successExample: bk.success_example || '',
+              audienceTools: bk.audience_tools || [],
+            };
+            setState((prev) => ({ ...prev, brandKit }));
+          }
+          // Load saved ideation if available
+          if (data.savedIdeation) {
+            setSavedIdeation(data.savedIdeation);
+            setIdeationGeneratedAt(data.ideationGeneratedAt);
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to load brand kit:', err);
+      } finally {
+        setLoadingBrandKit(false);
+      }
+    }
+    loadBrandKit();
+  }, []);
 
   const goToStep = useCallback((step: number) => {
     setState((prev) => ({ ...prev, currentStep: step }));
@@ -68,8 +114,16 @@ export function WizardContainer() {
       });
 
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to generate ideas');
+        // Handle both JSON and non-JSON error responses
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const data = await response.json();
+          throw new Error(data.error || 'Failed to generate ideas');
+        } else {
+          const text = await response.text();
+          console.error('Non-JSON error response:', text);
+          throw new Error(`Server error (${response.status}): ${text.substring(0, 100)}`);
+        }
       }
 
       const ideationResult: IdeationResult = await response.json();
@@ -81,6 +135,7 @@ export function WizardContainer() {
         currentStep: 2,
       }));
     } catch (err) {
+      console.error('Context submit error:', err);
       setError(err instanceof Error ? err.message : 'An error occurred');
       // Go back to step 1 on error
       setState((prev) => ({ ...prev, currentStep: 1 }));
@@ -93,6 +148,51 @@ export function WizardContainer() {
     setState((prev) => ({
       ...prev,
       selectedConceptIndex: index,
+      currentStep: 3,
+    }));
+  }, []);
+
+  const handleUseSavedIdeas = useCallback(() => {
+    if (savedIdeation) {
+      setState((prev) => ({
+        ...prev,
+        ideationResult: savedIdeation,
+        currentStep: 2,
+      }));
+    }
+  }, [savedIdeation]);
+
+  const handleCustomIdeaStart = useCallback(async (context: BusinessContext) => {
+    setError(null);
+
+    try {
+      // Save business context to brand_kit (same as normal flow)
+      const brandKitResponse = await fetch('/api/brand-kit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(context),
+      });
+
+      if (!brandKitResponse.ok) {
+        console.warn('Failed to save brand kit, continuing anyway');
+      }
+
+      setState((prev) => ({
+        ...prev,
+        brandKit: context,
+        isCustomIdea: true,
+        currentStep: 2,
+      }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    }
+  }, []);
+
+  const handleCustomIdeaSubmit = useCallback((concept: LeadMagnetConcept) => {
+    setState((prev) => ({
+      ...prev,
+      customConcept: concept,
+      selectedConceptIndex: 0, // Treat as "selected" for downstream compatibility
       currentStep: 3,
     }));
   }, []);
@@ -113,8 +213,16 @@ export function WizardContainer() {
       });
 
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to process extraction');
+        // Handle both JSON and non-JSON error responses
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const data = await response.json();
+          throw new Error(data.error || 'Failed to process extraction');
+        } else {
+          const text = await response.text();
+          console.error('Non-JSON error response:', text);
+          throw new Error(`Server error (${response.status}): ${text.substring(0, 100)}`);
+        }
       }
 
       const extractedContent: ExtractedContent = await response.json();
@@ -126,6 +234,7 @@ export function WizardContainer() {
         currentStep: 4,
       }));
     } catch (err) {
+      console.error('Extraction error:', err);
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setGenerating('idle');
@@ -133,7 +242,14 @@ export function WizardContainer() {
   }, []);
 
   const handleContentApprove = useCallback(async () => {
-    if (!state.extractedContent || !state.ideationResult || state.selectedConceptIndex === null) {
+    // Support both AI-generated and custom concepts
+    const concept = state.isCustomIdea && state.customConcept
+      ? state.customConcept
+      : state.ideationResult && state.selectedConceptIndex !== null
+        ? state.ideationResult.concepts[state.selectedConceptIndex]
+        : null;
+
+    if (!state.extractedContent || !concept) {
       return;
     }
 
@@ -141,7 +257,6 @@ export function WizardContainer() {
     setError(null);
 
     try {
-      const concept = state.ideationResult.concepts[state.selectedConceptIndex];
 
       const response = await fetch('/api/lead-magnet/write-post', {
         method: 'POST',
@@ -178,7 +293,7 @@ export function WizardContainer() {
     } finally {
       setGenerating('idle');
     }
-  }, [state.extractedContent, state.ideationResult, state.selectedConceptIndex, state.brandKit]);
+  }, [state.extractedContent, state.ideationResult, state.selectedConceptIndex, state.brandKit, state.isCustomIdea, state.customConcept]);
 
   const handlePostSelect = useCallback((index: number) => {
     setState((prev) => ({
@@ -189,14 +304,30 @@ export function WizardContainer() {
   }, []);
 
   const selectedConcept =
-    state.ideationResult && state.selectedConceptIndex !== null
-      ? state.ideationResult.concepts[state.selectedConceptIndex]
-      : null;
+    state.isCustomIdea && state.customConcept
+      ? state.customConcept
+      : state.ideationResult && state.selectedConceptIndex !== null
+        ? state.ideationResult.concepts[state.selectedConceptIndex]
+        : null;
 
   const selectedPost =
     state.postResult && state.selectedPostIndex !== null
       ? state.postResult.variations[state.selectedPostIndex]
       : null;
+
+  // Show loading state while fetching saved brand kit
+  if (loadingBrandKit) {
+    return (
+      <div className="min-h-screen bg-background">
+        <WizardProgress currentStep={1} />
+        <div className="container mx-auto max-w-4xl px-4 py-8">
+          <div className="flex items-center justify-center py-12">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Show generating screen when generating ideas
   if (generating === 'ideas') {
@@ -233,16 +364,27 @@ export function WizardContainer() {
               <ContextStep
                 initialData={state.brandKit}
                 onSubmit={handleContextSubmit}
+                onCustomIdea={handleCustomIdeaStart}
+                onUseSavedIdeas={handleUseSavedIdeas}
+                hasSavedIdeas={!!savedIdeation}
+                savedIdeasDate={ideationGeneratedAt}
                 loading={generating !== 'idle'}
               />
             )}
 
-            {state.currentStep === 2 && state.ideationResult && (
-              <IdeationStep
-                result={state.ideationResult}
-                onSelect={handleConceptSelect}
-                onBack={() => goToStep(1)}
-              />
+            {state.currentStep === 2 && (
+              state.isCustomIdea ? (
+                <CustomIdeaStep
+                  onSubmit={handleCustomIdeaSubmit}
+                  onBack={() => goToStep(1)}
+                />
+              ) : state.ideationResult ? (
+                <IdeationStep
+                  result={state.ideationResult}
+                  onSelect={handleConceptSelect}
+                  onBack={() => goToStep(1)}
+                />
+              ) : null
             )}
 
             {state.currentStep === 3 && selectedConcept && (

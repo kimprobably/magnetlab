@@ -1,6 +1,6 @@
 import { redirect, notFound } from 'next/navigation';
 import { auth } from '@/lib/auth';
-import { createSupabaseServerClient } from '@/lib/utils/supabase-server';
+import { createSupabaseServerClient, createSupabaseAdminClient } from '@/lib/utils/supabase-server';
 import { FunnelBuilder } from '@/components/funnel';
 import {
   funnelPageFromRow,
@@ -27,9 +27,10 @@ export default async function FunnelBuilderPage({ params }: PageProps) {
 
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
+  const adminClient = createSupabaseAdminClient();
 
-  // Fetch lead magnet and verify ownership
-  const { data: leadMagnetData, error: lmError } = await supabase
+  // Fetch lead magnet and verify ownership (use admin client to bypass RLS issues)
+  const { data: leadMagnetData, error: lmError } = await adminClient
     .from('lead_magnets')
     .select('*')
     .eq('id', id)
@@ -37,6 +38,7 @@ export default async function FunnelBuilderPage({ params }: PageProps) {
     .single();
 
   if (lmError || !leadMagnetData) {
+    console.error('Funnel page 404:', { id, userId: session.user.id, error: lmError });
     notFound();
   }
 

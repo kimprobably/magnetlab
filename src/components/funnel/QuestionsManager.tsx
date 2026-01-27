@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Plus, Trash2, GripVertical, Loader2 } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Plus, Trash2, GripVertical, Loader2, HelpCircle } from 'lucide-react';
 import type { QualificationQuestion, QualifyingAnswer } from '@/lib/types/funnel';
 
 interface QuestionsManagerProps {
@@ -21,6 +21,9 @@ export function QuestionsManager({
   const [newQualifyingAnswer, setNewQualifyingAnswer] = useState<QualifyingAnswer>('yes');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const dragCounter = useRef(0);
 
   const handleAddQuestion = async () => {
     if (!newQuestion.trim()) return;
@@ -98,6 +101,70 @@ export function QuestionsManager({
     }
   };
 
+  // Drag and drop handlers
+  const handleDragStart = (index: number) => {
+    setDraggedIndex(index);
+  };
+
+  const handleDragEnter = (index: number) => {
+    dragCounter.current++;
+    if (draggedIndex !== null && draggedIndex !== index) {
+      setDragOverIndex(index);
+    }
+  };
+
+  const handleDragLeave = () => {
+    dragCounter.current--;
+    if (dragCounter.current === 0) {
+      setDragOverIndex(null);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+    dragCounter.current = 0;
+  };
+
+  const handleDrop = async (targetIndex: number) => {
+    if (draggedIndex === null || draggedIndex === targetIndex || !funnelId) {
+      handleDragEnd();
+      return;
+    }
+
+    // Reorder locally first for immediate feedback
+    const newQuestions = [...questions];
+    const [removed] = newQuestions.splice(draggedIndex, 1);
+    newQuestions.splice(targetIndex, 0, removed);
+    setQuestions(newQuestions);
+    handleDragEnd();
+
+    // Save to server
+    try {
+      const response = await fetch(`/api/funnel/${funnelId}/questions`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          questionIds: newQuestions.map(q => q.id),
+        }),
+      });
+
+      if (!response.ok) {
+        // Revert on error
+        setQuestions(questions);
+        console.error('Failed to reorder questions');
+      }
+    } catch (err) {
+      // Revert on error
+      setQuestions(questions);
+      console.error('Reorder error:', err);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -120,15 +187,28 @@ export function QuestionsManager({
         {questions.map((question, index) => (
           <div
             key={question.id}
-            className="rounded-lg border bg-card p-4 flex items-start gap-3"
+            draggable
+            onDragStart={() => handleDragStart(index)}
+            onDragEnter={() => handleDragEnter(index)}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+            onDragEnd={handleDragEnd}
+            onDrop={() => handleDrop(index)}
+            className={`rounded-lg border bg-card p-4 flex items-start gap-3 transition-all ${
+              draggedIndex === index ? 'opacity-50 scale-[0.98]' : ''
+            } ${
+              dragOverIndex === index ? 'border-primary border-2 shadow-lg' : ''
+            }`}
           >
-            <div className="text-muted-foreground cursor-move">
+            <div className="text-muted-foreground cursor-grab active:cursor-grabbing">
               <GripVertical className="h-5 w-5" />
             </div>
 
             <div className="flex-1 space-y-3">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-muted-foreground">Q{index + 1}</span>
+                <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                  Q{index + 1}
+                </span>
                 <input
                   type="text"
                   value={question.questionText}
@@ -231,9 +311,29 @@ export function QuestionsManager({
       </div>
 
       {questions.length === 0 && (
-        <div className="text-center py-6 text-sm text-muted-foreground">
-          No qualification questions yet. Add questions to filter your leads.
+        <div className="text-center py-8 space-y-3">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-muted">
+            <HelpCircle className="h-6 w-6 text-muted-foreground" />
+          </div>
+          <div className="space-y-1">
+            <p className="text-sm font-medium">No qualification questions yet</p>
+            <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+              Add yes/no questions to qualify your leads. Only leads who answer correctly will see your calendar booking widget.
+            </p>
+          </div>
+          <div className="pt-2">
+            <p className="text-xs text-muted-foreground">
+              Example: &ldquo;Do you have a budget of at least $5,000?&rdquo;
+            </p>
+          </div>
         </div>
+      )}
+
+      {/* Reorder hint */}
+      {questions.length > 1 && (
+        <p className="text-xs text-muted-foreground text-center">
+          Drag questions to reorder them
+        </p>
       )}
     </div>
   );

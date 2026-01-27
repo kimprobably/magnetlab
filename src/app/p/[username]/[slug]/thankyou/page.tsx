@@ -69,7 +69,11 @@ export default async function PublicThankyouPage({ params, searchParams }: PageP
       calendly_url,
       qualification_pass_message,
       qualification_fail_message,
-      is_published
+      is_published,
+      theme,
+      primary_color,
+      background_style,
+      logo_url
     `)
     .eq('user_id', user.id)
     .eq('slug', slug)
@@ -100,6 +104,10 @@ export default async function PublicThankyouPage({ params, searchParams }: PageP
         questionText: q.question_text,
         questionOrder: q.question_order,
       }))}
+      theme={(funnel.theme as 'dark' | 'light') || 'dark'}
+      primaryColor={funnel.primary_color || '#8b5cf6'}
+      backgroundStyle={(funnel.background_style as 'solid' | 'gradient' | 'pattern') || 'solid'}
+      logoUrl={funnel.logo_url}
     />
   );
 }

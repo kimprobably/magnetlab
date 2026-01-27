@@ -2,7 +2,7 @@
 
 import { Monitor, Smartphone } from 'lucide-react';
 import { useState } from 'react';
-import type { QualificationQuestion } from '@/lib/types/funnel';
+import type { QualificationQuestion, FunnelTheme, BackgroundStyle } from '@/lib/types/funnel';
 
 interface FunnelPreviewProps {
   headline: string;
@@ -10,6 +10,10 @@ interface FunnelPreviewProps {
   buttonText: string;
   socialProof: string;
   questions: QualificationQuestion[];
+  theme?: FunnelTheme;
+  primaryColor?: string;
+  backgroundStyle?: BackgroundStyle;
+  logoUrl?: string | null;
 }
 
 export function FunnelPreview({
@@ -18,8 +22,38 @@ export function FunnelPreview({
   buttonText,
   socialProof,
   questions,
+  theme = 'dark',
+  primaryColor = '#8b5cf6',
+  backgroundStyle = 'solid',
+  logoUrl,
 }: FunnelPreviewProps) {
   const [viewMode, setViewMode] = useState<'desktop' | 'mobile'>('desktop');
+
+  // Theme-based colors
+  const isDark = theme === 'dark';
+  const bgColor = isDark ? '#09090B' : '#FAFAFA';
+  const textColor = isDark ? '#FAFAFA' : '#09090B';
+  const mutedColor = isDark ? '#A1A1AA' : '#71717A';
+  const borderColor = isDark ? '#27272A' : '#E4E4E7';
+  const inputBg = isDark ? '#09090B' : '#FFFFFF';
+  const placeholderColor = isDark ? '#71717A' : '#A1A1AA';
+  const browserBg = isDark ? '#18181B' : '#F4F4F5';
+  const browserBorder = isDark ? '#27272A' : '#E4E4E7';
+
+  // Background style
+  const getBackgroundStyle = () => {
+    if (backgroundStyle === 'gradient') {
+      return isDark
+        ? `linear-gradient(135deg, ${bgColor} 0%, #18181B 50%, ${bgColor} 100%)`
+        : `linear-gradient(135deg, ${bgColor} 0%, #FFFFFF 50%, ${bgColor} 100%)`;
+    }
+    if (backgroundStyle === 'pattern') {
+      return isDark
+        ? `radial-gradient(circle at 50% 50%, ${primaryColor}15 0%, transparent 50%), ${bgColor}`
+        : `radial-gradient(circle at 50% 50%, ${primaryColor}15 0%, transparent 50%), ${bgColor}`;
+    }
+    return bgColor;
+  };
 
   return (
     <div className="space-y-4">
@@ -58,30 +92,48 @@ export function FunnelPreview({
         }`}
       >
         {/* Simulated Browser Chrome */}
-        <div className="bg-zinc-900 px-4 py-2 flex items-center gap-2 border-b border-zinc-800">
+        <div
+          className="px-4 py-2 flex items-center gap-2"
+          style={{
+            background: browserBg,
+            borderBottom: `1px solid ${browserBorder}`
+          }}
+        >
           <div className="flex gap-1.5">
-            <div className="w-3 h-3 rounded-full bg-zinc-700" />
-            <div className="w-3 h-3 rounded-full bg-zinc-700" />
-            <div className="w-3 h-3 rounded-full bg-zinc-700" />
+            <div className="w-3 h-3 rounded-full" style={{ background: borderColor }} />
+            <div className="w-3 h-3 rounded-full" style={{ background: borderColor }} />
+            <div className="w-3 h-3 rounded-full" style={{ background: borderColor }} />
           </div>
           <div className="flex-1 mx-4">
-            <div className="bg-zinc-800 rounded-md px-3 py-1 text-xs text-zinc-500 text-center">
+            <div
+              className="rounded-md px-3 py-1 text-xs text-center"
+              style={{ background: isDark ? '#27272A' : '#E4E4E7', color: mutedColor }}
+            >
               magnetlab.app/p/username/your-page
             </div>
           </div>
         </div>
 
-        {/* Page Content - Linear Dark Design */}
+        {/* Page Content */}
         <div
           className="min-h-[400px] p-6 flex flex-col items-center justify-center text-center"
-          style={{ background: '#09090B' }}
+          style={{ background: getBackgroundStyle() }}
         >
           {/* Main Content */}
           <div className="max-w-md space-y-6">
+            {/* Logo */}
+            {logoUrl && (
+              <img
+                src={logoUrl}
+                alt="Logo"
+                className="h-10 w-auto mx-auto"
+              />
+            )}
+
             {/* Headline */}
             <h1
               className="text-2xl font-semibold leading-tight"
-              style={{ color: '#FAFAFA' }}
+              style={{ color: textColor }}
             >
               {headline || 'Your Headline Here'}
             </h1>
@@ -90,7 +142,7 @@ export function FunnelPreview({
             {subline && (
               <p
                 className="text-base leading-relaxed"
-                style={{ color: '#A1A1AA' }}
+                style={{ color: mutedColor }}
               >
                 {subline}
               </p>
@@ -101,9 +153,9 @@ export function FunnelPreview({
               <div
                 className="rounded-lg px-4 py-3 text-sm text-left"
                 style={{
-                  background: '#09090B',
-                  border: '1px solid #27272A',
-                  color: '#71717A',
+                  background: inputBg,
+                  border: `1px solid ${borderColor}`,
+                  color: placeholderColor,
                 }}
               >
                 Enter your email...
@@ -112,8 +164,8 @@ export function FunnelPreview({
               <button
                 className="w-full rounded-lg px-4 py-3 text-sm font-medium transition-colors"
                 style={{
-                  background: '#8B5CF6',
-                  color: '#FAFAFA',
+                  background: primaryColor,
+                  color: '#FFFFFF',
                 }}
               >
                 {buttonText || 'Get Free Access'}
@@ -124,7 +176,7 @@ export function FunnelPreview({
             {socialProof && (
               <p
                 className="text-xs"
-                style={{ color: '#71717A' }}
+                style={{ color: placeholderColor }}
               >
                 {socialProof}
               </p>

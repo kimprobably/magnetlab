@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Loader2, MessageCircle, Send } from 'lucide-react';
 import type { LeadMagnetConcept, ContentExtractionQuestion, LeadMagnetArchetype } from '@/lib/types/lead-magnet';
 import { ARCHETYPE_NAMES } from '@/lib/types/lead-magnet';
@@ -24,6 +24,7 @@ export function ExtractionStep({
   const [answers, setAnswers] = useState<Record<string, string>>(initialAnswers);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [loadingQuestions, setLoadingQuestions] = useState(true);
+  const questionRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
     async function fetchQuestions() {
@@ -46,12 +47,28 @@ export function ExtractionStep({
   const currentQuestion = questions[currentQuestionIndex];
   const isComplete = Object.keys(answers).length >= questions.filter((q) => q.required).length;
 
+  // Auto-scroll to current question when it changes
+  useEffect(() => {
+    if (currentQuestion && questionRefs.current[currentQuestion.id]) {
+      // Small delay to allow the DOM to update
+      setTimeout(() => {
+        questionRefs.current[currentQuestion.id]?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        });
+      }, 100);
+    }
+  }, [currentQuestionIndex, currentQuestion]);
+
   const handleAnswerSubmit = () => {
     const answer = answers[currentQuestion?.id];
     if (!answer?.trim()) return;
 
     if (currentQuestionIndex < questions.length - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
+    } else {
+      // Last question - trigger completion
+      handleComplete();
     }
   };
 
@@ -74,7 +91,7 @@ export function ExtractionStep({
           <div className="mb-2 text-sm font-medium text-primary">
             {ARCHETYPE_NAMES[concept.archetype]}
           </div>
-          <h1 className="text-3xl font-bold">{concept.title}</h1>
+          <h1 className="text-3xl font-semibold">{concept.title}</h1>
           <p className="mt-2 text-muted-foreground">
             Let&apos;s extract your unique expertise. Answer these questions to create genuinely valuable content.
           </p>
@@ -116,6 +133,7 @@ export function ExtractionStep({
           return (
             <div
               key={question.id}
+              ref={(el) => { questionRefs.current[question.id] = el; }}
               className={`rounded-xl border p-5 transition-all ${
                 isActive ? 'border-primary bg-card shadow-lg' : 'bg-muted/30'
               }`}

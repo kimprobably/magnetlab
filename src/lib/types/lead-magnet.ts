@@ -273,6 +273,8 @@ export interface WizardState {
   extractedContent: ExtractedContent | null;
   postResult: PostWriterResult | null;
   selectedPostIndex: number | null;
+  isCustomIdea: boolean;
+  customConcept: LeadMagnetConcept | null;
 }
 
 export const WIZARD_STEPS = [

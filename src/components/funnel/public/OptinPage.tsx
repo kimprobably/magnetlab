@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 
@@ -12,6 +12,10 @@ interface OptinPageProps {
   socialProof: string | null;
   username: string;
   slug: string;
+  theme?: 'dark' | 'light';
+  primaryColor?: string;
+  backgroundStyle?: 'solid' | 'gradient' | 'pattern';
+  logoUrl?: string | null;
 }
 
 export function OptinPage({
@@ -22,6 +26,10 @@ export function OptinPage({
   socialProof,
   username,
   slug,
+  theme = 'dark',
+  primaryColor = '#8b5cf6',
+  backgroundStyle = 'solid',
+  logoUrl,
 }: OptinPageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -29,6 +37,41 @@ export function OptinPage({
   const [name, setName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Theme-based colors
+  const isDark = theme === 'dark';
+  const bgColor = isDark ? '#09090B' : '#FAFAFA';
+  const textColor = isDark ? '#FAFAFA' : '#09090B';
+  const mutedColor = isDark ? '#A1A1AA' : '#71717A';
+  const borderColor = isDark ? '#27272A' : '#E4E4E7';
+  const inputBg = isDark ? '#09090B' : '#FFFFFF';
+  const placeholderColor = isDark ? '#71717A' : '#A1A1AA';
+
+  // Background style
+  const getBackgroundStyle = () => {
+    if (backgroundStyle === 'gradient') {
+      return isDark
+        ? `linear-gradient(135deg, ${bgColor} 0%, #18181B 50%, ${bgColor} 100%)`
+        : `linear-gradient(135deg, ${bgColor} 0%, #FFFFFF 50%, ${bgColor} 100%)`;
+    }
+    if (backgroundStyle === 'pattern') {
+      return isDark
+        ? `radial-gradient(circle at 50% 50%, ${primaryColor}15 0%, transparent 50%), ${bgColor}`
+        : `radial-gradient(circle at 50% 50%, ${primaryColor}15 0%, transparent 50%), ${bgColor}`;
+    }
+    return bgColor;
+  };
+
+  // Track page view on mount
+  useEffect(() => {
+    fetch('/api/public/view', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ funnelPageId: funnelId }),
+    }).catch(() => {
+      // Ignore tracking errors
+    });
+  }, [funnelId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,13 +113,22 @@ export function OptinPage({
   return (
     <div
       className="min-h-screen flex flex-col items-center justify-center px-4 py-12"
-      style={{ background: '#09090B' }}
+      style={{ background: getBackgroundStyle() }}
     >
       <div className="w-full max-w-md space-y-8 text-center">
+        {/* Logo */}
+        {logoUrl && (
+          <img
+            src={logoUrl}
+            alt="Logo"
+            className="h-12 w-auto mx-auto"
+          />
+        )}
+
         {/* Headline */}
         <h1
           className="text-3xl md:text-4xl font-semibold leading-tight"
-          style={{ color: '#FAFAFA' }}
+          style={{ color: textColor }}
         >
           {headline}
         </h1>
@@ -85,7 +137,7 @@ export function OptinPage({
         {subline && (
           <p
             className="text-lg leading-relaxed"
-            style={{ color: '#A1A1AA' }}
+            style={{ color: mutedColor }}
           >
             {subline}
           </p>
@@ -100,9 +152,9 @@ export function OptinPage({
             placeholder="Your name (optional)"
             className="w-full rounded-lg px-4 py-3 text-sm outline-none transition-colors"
             style={{
-              background: '#09090B',
-              border: '1px solid #27272A',
-              color: '#FAFAFA',
+              background: inputBg,
+              border: `1px solid ${borderColor}`,
+              color: textColor,
             }}
           />
 
@@ -114,14 +166,14 @@ export function OptinPage({
             required
             className="w-full rounded-lg px-4 py-3 text-sm outline-none transition-colors"
             style={{
-              background: '#09090B',
-              border: '1px solid #27272A',
-              color: '#FAFAFA',
+              background: inputBg,
+              border: `1px solid ${borderColor}`,
+              color: textColor,
             }}
           />
 
           {error && (
-            <p className="text-sm" style={{ color: '#F87171' }}>
+            <p className="text-sm text-red-400">
               {error}
             </p>
           )}
@@ -129,11 +181,8 @@ export function OptinPage({
           <button
             type="submit"
             disabled={submitting || !email}
-            className="w-full rounded-lg px-4 py-3 text-sm font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-            style={{
-              background: '#8B5CF6',
-              color: '#FAFAFA',
-            }}
+            className="w-full rounded-lg px-4 py-3 text-sm font-medium text-white disabled:opacity-50 flex items-center justify-center gap-2 transition-colors hover:opacity-90"
+            style={{ background: primaryColor }}
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
             {buttonText}
@@ -144,7 +193,7 @@ export function OptinPage({
         {socialProof && (
           <p
             className="text-sm"
-            style={{ color: '#71717A' }}
+            style={{ color: placeholderColor }}
           >
             {socialProof}
           </p>
@@ -158,7 +207,7 @@ export function OptinPage({
           target="_blank"
           rel="noopener noreferrer"
           className="text-xs transition-colors hover:opacity-80"
-          style={{ color: '#52525B' }}
+          style={{ color: placeholderColor }}
         >
           Powered by MagnetLab
         </a>
