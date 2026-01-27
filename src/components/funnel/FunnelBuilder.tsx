@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { Loader2, Sparkles } from 'lucide-react';
 import { OptinPageEditor } from './OptinPageEditor';
 import { ThankyouPageEditor } from './ThankyouPageEditor';
@@ -291,12 +292,12 @@ export function FunnelBuilder({
 
         {/* Save Button */}
         <div className="flex items-center justify-between pt-4 border-t">
-          <a
+          <Link
             href="/library"
             className="text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             Back to Library
-          </a>
+          </Link>
           <button
             onClick={handleSave}
             disabled={saving}
