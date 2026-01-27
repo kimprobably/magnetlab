@@ -3,7 +3,7 @@
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 
 // Bcrypt configuration - 12 rounds provides good security/performance balance
 const BCRYPT_SALT_ROUNDS = 12;
