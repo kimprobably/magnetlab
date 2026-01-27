@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
 interface CalendlyEmbedProps {
   url: string;
@@ -18,67 +18,115 @@ function detectEmbedType(url: string): EmbedType {
   return 'unknown';
 }
 
+// Extract Cal.com path from URL
+function getCalLink(url: string): string {
+  // URL format: https://cal.com/username/event-type
+  const match = url.match(/cal\.com\/(.+?)(?:\?|$)/);
+  if (match) {
+    return match[1];
+  }
+  // If not a full URL, assume it's already the path
+  return url.replace(/^https?:\/\/cal\.com\//, '');
+}
+
 export function CalendlyEmbed({ url }: CalendlyEmbedProps) {
   const [embedType] = useState<EmbedType>(() => detectEmbedType(url));
+  const [scriptLoaded, setScriptLoaded] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (embedType === 'calendly') {
+      // Check if script already exists
+      const existingScript = document.querySelector('script[src="https://assets.calendly.com/assets/external/widget.js"]');
+      if (existingScript) {
+        setScriptLoaded(true);
+        return;
+      }
+
       // Load Calendly widget script
       const script = document.createElement('script');
       script.src = 'https://assets.calendly.com/assets/external/widget.js';
       script.async = true;
+      script.onload = () => setScriptLoaded(true);
       document.body.appendChild(script);
 
       return () => {
-        const existingScript = document.querySelector('script[src="https://assets.calendly.com/assets/external/widget.js"]');
-        if (existingScript) {
-          existingScript.remove();
-        }
+        // Don't remove script on unmount as it might be used elsewhere
       };
     }
 
     if (embedType === 'cal') {
-      // Load Cal.com embed script
+      // Check if Cal already loaded
+      if (typeof window !== 'undefined' && (window as unknown as { Cal?: unknown }).Cal) {
+        setScriptLoaded(true);
+        return;
+      }
+
+      // Load Cal.com embed script using their recommended method
       const script = document.createElement('script');
-      script.src = 'https://app.cal.com/embed/embed.js';
-      script.async = true;
-      document.body.appendChild(script);
+      script.innerHTML = `
+        (function (C, A, L) {
+          let p = function (a, ar) { a.q.push(ar); };
+          let d = C.document;
+          C.Cal = C.Cal || function () {
+            let cal = C.Cal;
+            let ar = arguments;
+            if (!cal.loaded) {
+              cal.ns = {};
+              cal.q = cal.q || [];
+              d.head.appendChild(d.createElement("script")).src = A;
+              cal.loaded = true;
+            }
+            if (ar[0] === L) {
+              const api = function () { p(api, arguments); };
+              const namespace = ar[1];
+              api.q = api.q || [];
+              typeof namespace === "string" ? (cal.ns[namespace] = api) && p(api, ar) : p(cal, ar);
+              return;
+            }
+            p(cal, ar);
+          };
+        })(window, "https://app.cal.com/embed/embed.js", "init");
+        Cal("init", {origin:"https://cal.com"});
+      `;
+      document.head.appendChild(script);
+
+      // Wait for Cal to be available
+      const checkCal = setInterval(() => {
+        if (typeof window !== 'undefined' && (window as unknown as { Cal?: unknown }).Cal) {
+          setScriptLoaded(true);
+          clearInterval(checkCal);
+        }
+      }, 100);
 
       return () => {
-        const existingScript = document.querySelector('script[src="https://app.cal.com/embed/embed.js"]');
-        if (existingScript) {
-          existingScript.remove();
-        }
+        clearInterval(checkCal);
       };
     }
   }, [embedType]);
 
-  // Format URLs appropriately
-  const getFormattedUrl = () => {
-    if (embedType === 'calendly') {
-      return url.startsWith('https://') ? url : `https://calendly.com/${url}`;
-    }
-    if (embedType === 'cal') {
-      return url.startsWith('https://') ? url : `https://cal.com/${url}`;
-    }
-    return url;
-  };
+  // Initialize Cal.com inline embed after script loads
+  useEffect(() => {
+    if (embedType === 'cal' && scriptLoaded && containerRef.current) {
+      const calLink = getCalLink(url);
+      const Cal = (window as unknown as { Cal: (action: string, target: HTMLElement | string, options: Record<string, unknown>) => void }).Cal;
 
-  // Extract Cal.com username and event from URL
-  const getCalComParams = () => {
-    const formattedUrl = getFormattedUrl();
-    // URL format: https://cal.com/username/event-type
-    const match = formattedUrl.match(/cal\.com\/([^/]+)(?:\/([^?]+))?/);
-    if (match) {
-      return {
-        calLink: match[2] ? `${match[1]}/${match[2]}` : match[1],
-      };
+      if (Cal && containerRef.current) {
+        // Clear container first
+        containerRef.current.innerHTML = '';
+
+        Cal("inline", containerRef.current, {
+          calLink: calLink,
+          config: {
+            theme: "dark",
+          },
+        });
+      }
     }
-    return { calLink: url.replace(/^https?:\/\/cal\.com\//, '') };
-  };
+  }, [embedType, scriptLoaded, url]);
 
   if (embedType === 'calendly') {
-    const calendlyUrl = getFormattedUrl();
+    const calendlyUrl = url.startsWith('https://') ? url : `https://calendly.com/${url}`;
     return (
       <div
         className="calendly-inline-widget rounded-xl overflow-hidden"
@@ -95,9 +143,9 @@ export function CalendlyEmbed({ url }: CalendlyEmbedProps) {
   }
 
   if (embedType === 'cal') {
-    const { calLink } = getCalComParams();
     return (
       <div
+        ref={containerRef}
         className="rounded-xl overflow-hidden"
         style={{
           minWidth: '320px',
@@ -107,15 +155,11 @@ export function CalendlyEmbed({ url }: CalendlyEmbedProps) {
           borderRadius: '12px',
         }}
       >
-        <cal-inline
-          data-cal-link={calLink}
-          data-cal-config='{"theme":"dark"}'
-          style={{
-            width: '100%',
-            height: '100%',
-            overflow: 'auto',
-          }}
-        />
+        {!scriptLoaded && (
+          <div className="flex items-center justify-center h-full text-zinc-500">
+            Loading calendar...
+          </div>
+        )}
       </div>
     );
   }
