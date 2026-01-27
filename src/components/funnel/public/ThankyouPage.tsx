@@ -153,6 +153,11 @@ export function ThankyouPage({
           )}
         </div>
 
+        {/* Video (show immediately to everyone) */}
+        {vslUrl && (
+          <VideoEmbed url={vslUrl} />
+        )}
+
         {/* Qualification Questions */}
         {hasQuestions && !qualificationComplete && (
           <div
@@ -225,11 +230,6 @@ export function ThankyouPage({
               {isQualified ? passMessage : failMessage}
             </p>
           </div>
-        )}
-
-        {/* Video (show after qualification or if no questions) */}
-        {qualificationComplete && vslUrl && (
-          <VideoEmbed url={vslUrl} />
         )}
 
         {/* Calendly (show only for qualified leads) */}
