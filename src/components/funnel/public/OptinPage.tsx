@@ -34,7 +34,6 @@ export function OptinPage({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
-  const [name, setName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -87,7 +86,6 @@ export function OptinPage({
         body: JSON.stringify({
           funnelPageId: funnelId,
           email,
-          name: name || undefined,
           utmSource: searchParams.get('utm_source') || undefined,
           utmMedium: searchParams.get('utm_medium') || undefined,
           utmCampaign: searchParams.get('utm_campaign') || undefined,
@@ -145,19 +143,6 @@ export function OptinPage({
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Your name (optional)"
-            className="w-full rounded-lg px-4 py-3 text-sm outline-none transition-colors"
-            style={{
-              background: inputBg,
-              border: `1px solid ${borderColor}`,
-              color: textColor,
-            }}
-          />
-
           <input
             type="email"
             value={email}

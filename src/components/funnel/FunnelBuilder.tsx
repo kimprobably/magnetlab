@@ -321,6 +321,10 @@ export function FunnelBuilder({
           primaryColor={primaryColor}
           backgroundStyle={backgroundStyle}
           logoUrl={logoUrl}
+          thankyouHeadline={thankyouHeadline}
+          thankyouSubline={thankyouSubline}
+          vslUrl={vslUrl}
+          calendlyUrl={calendlyUrl}
         />
 
         {funnel && (
