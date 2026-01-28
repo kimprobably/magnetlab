@@ -4,6 +4,7 @@
 import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
 import { getUserIntegration } from '@/lib/utils/encrypted-storage';
 import { scheduleEmailSequence } from '@/trigger/email-sequence';
+import { logError, logInfo } from '@/lib/utils/logger';
 import type { EmailSequenceRow } from '@/lib/types/email';
 import type { ResendConfig } from '@/lib/integrations/resend';
 
@@ -78,7 +79,7 @@ async function getUserResendConfig(userId: string): Promise<ResendConfig | undef
       fromName: metadata?.fromName,
     };
   } catch (error) {
-    console.error('Error fetching user Resend config:', error);
+    logError('email-sequence/resend-config', error, { userId });
     return undefined;
   }
 }
@@ -101,11 +102,13 @@ export async function triggerEmailSequenceIfActive(
       return { triggered: false };
     }
 
-    // Get sender info from brand kit
-    const { senderName, senderEmail } = await getSenderInfo(input.userId);
+    // Parallelize getting sender info and Resend config
+    const [senderInfo, resendConfig] = await Promise.all([
+      getSenderInfo(input.userId),
+      getUserResendConfig(input.userId),
+    ]);
 
-    // Get user's Resend config if they have their own account connected
-    const resendConfig = await getUserResendConfig(input.userId);
+    const { senderName, senderEmail } = senderInfo;
 
     // Trigger the email sequence via Trigger.dev
     await scheduleEmailSequence.trigger({
@@ -120,11 +123,14 @@ export async function triggerEmailSequenceIfActive(
       resendConfig,
     });
 
-    console.log(`Email sequence triggered for lead ${input.email}${resendConfig ? ' (using custom Resend account)' : ''}`);
+    logInfo('email-sequence/trigger', 'Email sequence triggered', {
+      leadEmail: input.email,
+      customResend: !!resendConfig
+    });
     return { triggered: true };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Email sequence trigger error:', errorMessage);
+    logError('email-sequence/trigger', error, { leadId: input.leadId });
     return { triggered: false, error: errorMessage };
   }
 }
