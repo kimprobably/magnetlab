@@ -72,21 +72,32 @@ export async function PUT(request: Request, { params }: RouteParams) {
 
     const { leadMagnetId } = await params;
     const body = await request.json();
-    const { emails } = body;
+    const { emails, status } = body;
 
-    if (!emails || !Array.isArray(emails)) {
-      return ApiErrors.validationError('emails array is required');
+    // Require at least one field to update
+    if (!emails && !status) {
+      return ApiErrors.validationError('emails array or status is required');
     }
 
-    // Validate email structure
-    for (let i = 0; i < emails.length; i++) {
-      const email = emails[i];
-      if (typeof email.day !== 'number' ||
-          typeof email.subject !== 'string' ||
-          typeof email.body !== 'string' ||
-          typeof email.replyTrigger !== 'string') {
-        return ApiErrors.validationError(`Invalid email at index ${i}`);
+    // Validate email structure if provided
+    if (emails) {
+      if (!Array.isArray(emails)) {
+        return ApiErrors.validationError('emails must be an array');
       }
+      for (let i = 0; i < emails.length; i++) {
+        const email = emails[i];
+        if (typeof email.day !== 'number' ||
+            typeof email.subject !== 'string' ||
+            typeof email.body !== 'string' ||
+            typeof email.replyTrigger !== 'string') {
+          return ApiErrors.validationError(`Invalid email at index ${i}`);
+        }
+      }
+    }
+
+    // Validate status if provided
+    if (status && !['draft', 'synced', 'active'].includes(status)) {
+      return ApiErrors.validationError('status must be draft, synced, or active');
     }
 
     const supabase = await createSupabaseServerClient();
@@ -103,16 +114,24 @@ export async function PUT(request: Request, { params }: RouteParams) {
       return ApiErrors.notFound('Email sequence');
     }
 
+    // Build update object
+    const updateData: Record<string, unknown> = {};
+
+    if (emails) {
+      // When emails are edited, reset sync status
+      updateData.emails = emails;
+      updateData.status = 'draft';
+      updateData.loops_synced_at = null;
+      updateData.loops_transactional_ids = [];
+    } else if (status) {
+      // Just updating status (e.g., pausing/resuming)
+      updateData.status = status;
+    }
+
     // Update the sequence
     const { data, error } = await supabase
       .from('email_sequences')
-      .update({
-        emails,
-        // Reset sync status when emails are edited
-        status: 'draft',
-        loops_synced_at: null,
-        loops_transactional_ids: [],
-      })
+      .update(updateData)
       .eq('id', existingSequence.id)
       .eq('user_id', session.user.id)
       .select()

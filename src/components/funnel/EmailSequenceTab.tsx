@@ -8,6 +8,7 @@ import {
   CheckCircle,
   AlertCircle,
   PlayCircle,
+  PauseCircle,
   Edit2,
   ChevronDown,
   ChevronUp,
@@ -232,6 +233,33 @@ export function EmailSequenceTab({ leadMagnetId }: EmailSequenceTabProps) {
     }
   };
 
+  const handleDeactivate = async () => {
+    setActivating(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await fetch(`/api/email-sequence/${leadMagnetId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'synced' }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to deactivate');
+      }
+
+      const data = await response.json();
+      setSequence(data.emailSequence);
+      setSuccess('Email sequence paused. New leads will not receive emails.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to deactivate email sequence');
+    } finally {
+      setActivating(false);
+    }
+  };
+
   const handleEditEmail = (index: number) => {
     if (sequence?.emails[index]) {
       setEditingEmail(index);
@@ -407,10 +435,24 @@ export function EmailSequenceTab({ leadMagnetId }: EmailSequenceTabProps) {
           )}
 
           {sequence.status === 'active' && (
-            <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1">
-              <CheckCircle className="h-4 w-4" />
-              Active - new leads will receive this sequence
-            </p>
+            <>
+              <button
+                onClick={handleDeactivate}
+                disabled={activating}
+                className="flex items-center gap-2 rounded-lg border border-yellow-300 dark:border-yellow-700 bg-yellow-50 dark:bg-yellow-900/20 px-4 py-2 text-sm font-medium text-yellow-700 dark:text-yellow-300 hover:bg-yellow-100 dark:hover:bg-yellow-900/30 disabled:opacity-50 transition-colors"
+              >
+                {activating ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <PauseCircle className="h-4 w-4" />
+                )}
+                Pause Emails
+              </button>
+              <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1">
+                <CheckCircle className="h-4 w-4" />
+                Active - new leads will receive this sequence
+              </p>
+            </>
           )}
         </div>
       )}
@@ -423,6 +465,7 @@ export function EmailSequenceTab({ leadMagnetId }: EmailSequenceTabProps) {
           <li>2. Review and customize each email</li>
           <li>3. Activate the sequence to go live</li>
           <li>4. When leads opt in, they receive the sequence automatically</li>
+          <li>5. Pause anytime to stop sending to new leads</li>
         </ul>
       </div>
     </div>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Globe, ExternalLink, Edit, Plus, Loader2, Eye, EyeOff, Users } from 'lucide-react';
+import { Globe, ExternalLink, Edit, Plus, Loader2, Eye, EyeOff, Users, Upload } from 'lucide-react';
 
 interface FunnelPage {
   id: string;
@@ -87,13 +87,22 @@ export default function PagesPage() {
             Manage your opt-in and thank-you pages
           </p>
         </div>
-        <Link
-          href="/library"
-          className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-        >
-          <Plus className="h-4 w-4" />
-          Create Page
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/pages/import"
+            className="flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-secondary transition-colors"
+          >
+            <Upload className="h-4 w-4" />
+            Import Existing
+          </Link>
+          <Link
+            href="/create"
+            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            <Plus className="h-4 w-4" />
+            Create New
+          </Link>
+        </div>
       </div>
 
       {!user?.username && (
@@ -117,16 +126,25 @@ export default function PagesPage() {
         <div className="rounded-lg border border-dashed p-12 text-center">
           <Globe className="mx-auto h-12 w-12 text-muted-foreground" />
           <h3 className="mt-4 text-lg font-medium">No funnel pages yet</h3>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Create a funnel page from your lead magnet library to start capturing leads.
+          <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">
+            Create a capture page to start collecting leads. Already have a lead magnet? Import it directly.
           </p>
-          <Link
-            href="/library"
-            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-          >
-            <Plus className="h-4 w-4" />
-            Go to Library
-          </Link>
+          <div className="mt-6 flex items-center justify-center gap-3">
+            <Link
+              href="/pages/import"
+              className="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-secondary transition-colors"
+            >
+              <Upload className="h-4 w-4" />
+              Import Existing
+            </Link>
+            <Link
+              href="/create"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            >
+              <Plus className="h-4 w-4" />
+              Create New
+            </Link>
+          </div>
         </div>
       ) : (
         <div className="grid gap-4">

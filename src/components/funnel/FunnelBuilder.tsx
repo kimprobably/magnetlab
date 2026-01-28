@@ -10,6 +10,7 @@ import { ThemeEditor } from './ThemeEditor';
 import { EmailSequenceTab } from './EmailSequenceTab';
 import { FunnelPreview } from './FunnelPreview';
 import { PublishControls } from './PublishControls';
+import { LeadDeliveryInfo } from './LeadDeliveryInfo';
 import type { FunnelPage, QualificationQuestion, GeneratedOptinContent, FunnelTheme, BackgroundStyle } from '@/lib/types/funnel';
 import type { LeadMagnet } from '@/lib/types/lead-magnet';
 
@@ -330,6 +331,9 @@ export function FunnelBuilder({
             username={username}
           />
         )}
+
+        {/* Lead Delivery Info */}
+        <LeadDeliveryInfo />
       </div>
     </div>
   );
