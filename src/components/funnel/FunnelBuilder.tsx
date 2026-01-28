@@ -94,7 +94,6 @@ export function FunnelBuilder({
   };
 
   const handleSave = async () => {
-    console.log('handleSave called, funnel:', funnel?.id, 'slug:', slug, 'leadMagnetId:', leadMagnet.id);
     setSaving(true);
     setError(null);
 
@@ -118,20 +117,14 @@ export function FunnelBuilder({
         logoUrl,
       };
 
-      console.log('Saving funnel with payload:', payload);
-
       let response;
       if (funnel) {
-        // Update existing
-        console.log('Updating existing funnel:', funnel.id);
         response = await fetch(`/api/funnel/${funnel.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         });
       } else {
-        // Create new
-        console.log('Creating new funnel');
         response = await fetch('/api/funnel', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -139,11 +132,8 @@ export function FunnelBuilder({
         });
       }
 
-      console.log('Response status:', response.status);
-
       if (!response.ok) {
         const data = await response.json();
-        console.error('Save failed:', data);
 
         // If funnel already exists (409), reload to get the existing funnel
         if (response.status === 409) {
@@ -155,10 +145,8 @@ export function FunnelBuilder({
       }
 
       const { funnel: savedFunnel } = await response.json();
-      console.log('Funnel saved successfully:', savedFunnel);
       setFunnel(savedFunnel);
     } catch (err) {
-      console.error('Save error:', err);
       setError(err instanceof Error ? err.message : 'Failed to save');
     } finally {
       setSaving(false);
