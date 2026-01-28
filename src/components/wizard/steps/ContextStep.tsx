@@ -2,23 +2,26 @@
 
 import { useState, useEffect } from 'react';
 import { Loader2, Sparkles, FileText, Lightbulb, History } from 'lucide-react';
-import type { BusinessContext, BusinessType } from '@/lib/types/lead-magnet';
+import type { BusinessContext, BusinessType, IdeationSources } from '@/lib/types/lead-magnet';
 import { BUSINESS_TYPE_LABELS } from '@/lib/types/lead-magnet';
 import { SmartImportTab } from './SmartImportTab';
+import { IdeationSourcesPanel } from './IdeationSourcesPanel';
 
 type TabValue = 'smart' | 'manual';
 
 interface ContextStepProps {
   initialData: Partial<BusinessContext>;
-  onSubmit: (context: BusinessContext) => void;
+  onSubmit: (context: BusinessContext, sources?: IdeationSources) => void;
   onCustomIdea?: (context: BusinessContext) => void;
   onUseSavedIdeas?: () => void;
   hasSavedIdeas?: boolean;
   savedIdeasDate?: string | null;
   loading: boolean;
+  ideationSources?: IdeationSources;
+  onIdeationSourcesChange?: (sources: IdeationSources) => void;
 }
 
-export function ContextStep({ initialData, onSubmit, onCustomIdea, onUseSavedIdeas, hasSavedIdeas, savedIdeasDate, loading }: ContextStepProps) {
+export function ContextStep({ initialData, onSubmit, onCustomIdea, onUseSavedIdeas, hasSavedIdeas, savedIdeasDate, loading, ideationSources = {}, onIdeationSourcesChange }: ContextStepProps) {
   const [activeTab, setActiveTab] = useState<TabValue>('smart');
   const [hasExtracted, setHasExtracted] = useState(false);
   const [formData, setFormData] = useState<Partial<BusinessContext>>({
@@ -40,6 +43,11 @@ export function ContextStep({ initialData, onSubmit, onCustomIdea, onUseSavedIde
     result: '',
     question: '',
   });
+
+  // Local state for ideation sources if not controlled externally
+  const [localSources, setLocalSources] = useState<IdeationSources>({});
+  const sources = ideationSources || localSources;
+  const handleSourcesChange = onIdeationSourcesChange || setLocalSources;
 
   // Auto-switch to manual tab if initial data has content
   useEffect(() => {
@@ -66,7 +74,7 @@ export function ContextStep({ initialData, onSubmit, onCustomIdea, onUseSavedIde
       return;
     }
 
-    onSubmit({
+    const context: BusinessContext = {
       businessDescription: formData.businessDescription,
       businessType: formData.businessType,
       credibilityMarkers: formData.credibilityMarkers || [],
@@ -77,7 +85,11 @@ export function ContextStep({ initialData, onSubmit, onCustomIdea, onUseSavedIde
       frequentQuestions: formData.frequentQuestions || [],
       results: formData.results || [],
       successExample: formData.successExample,
-    });
+    };
+
+    // Include sources if any have been analyzed
+    const hasAnySources = sources.callTranscript?.insights || sources.competitorInspiration?.analysis;
+    onSubmit(context, hasAnySources ? sources : undefined);
   };
 
   const addToArray = (field: keyof Pick<BusinessContext, 'credibilityMarkers' | 'urgentPains' | 'results' | 'frequentQuestions'>, inputKey: keyof typeof currentInput) => {
@@ -330,6 +342,12 @@ export function ContextStep({ initialData, onSubmit, onCustomIdea, onUseSavedIde
             className="mt-2 w-full rounded-lg border border-border bg-muted/50 dark:bg-muted/20 px-4 py-3 text-sm placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors resize-none"
           />
         </div>
+
+        {/* Ideation Sources Panel */}
+        <IdeationSourcesPanel
+          sources={sources}
+          onSourcesChange={handleSourcesChange}
+        />
 
         {/* Choice Buttons */}
         <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-4">

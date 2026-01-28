@@ -260,12 +260,58 @@ export interface LeadMagnetAnalytics {
 }
 
 // ============================================
+// IDEATION SOURCES (Call Transcripts & Competitor Analysis)
+// ============================================
+
+export interface CallTranscriptInsights {
+  painPoints: Array<{
+    quote: string;
+    theme: string;
+    frequency: 'mentioned-once' | 'recurring' | 'dominant';
+  }>;
+  frequentQuestions: Array<{
+    question: string;
+    context: string;
+  }>;
+  transformationOutcomes: Array<{
+    desiredState: string;
+    currentState: string;
+  }>;
+  objections: Array<{
+    objection: string;
+    underlyingConcern: string;
+  }>;
+  languagePatterns: string[];
+}
+
+export interface CompetitorAnalysis {
+  detectedArchetype: LeadMagnetArchetype | null;
+  format: string;
+  painPointAddressed: string;
+  effectivenessFactors: string[];
+  adaptationSuggestions: string[];
+  originalTitle: string;
+}
+
+export interface IdeationSources {
+  callTranscript?: {
+    raw: string;
+    insights: CallTranscriptInsights;
+  };
+  competitorInspiration?: {
+    raw: string;
+    analysis: CompetitorAnalysis;
+  };
+}
+
+// ============================================
 // WIZARD STATE
 // ============================================
 
 export interface WizardState {
   currentStep: number;
   brandKit: Partial<BusinessContext>;
+  ideationSources: IdeationSources;
   ideationResult: IdeationResult | null;
   selectedConceptIndex: number | null;
   extractionAnswers: Record<string, string>;

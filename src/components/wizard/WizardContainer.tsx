@@ -19,6 +19,7 @@ import type {
   PostWriterResult,
   LeadMagnetArchetype,
   LeadMagnetConcept,
+  IdeationSources,
 } from '@/lib/types/lead-magnet';
 
 type GeneratingState = 'idle' | 'ideas' | 'extraction' | 'posts';
@@ -26,6 +27,7 @@ type GeneratingState = 'idle' | 'ideas' | 'extraction' | 'posts';
 const INITIAL_STATE: WizardState = {
   currentStep: 1,
   brandKit: {},
+  ideationSources: {},
   ideationResult: null,
   selectedConceptIndex: null,
   extractionAnswers: {},
@@ -90,9 +92,18 @@ export function WizardContainer() {
     setError(null);
   }, []);
 
-  const handleContextSubmit = useCallback(async (context: BusinessContext) => {
+  const handleIdeationSourcesChange = useCallback((sources: IdeationSources) => {
+    setState((prev) => ({ ...prev, ideationSources: sources }));
+  }, []);
+
+  const handleContextSubmit = useCallback(async (context: BusinessContext, sources?: IdeationSources) => {
     setGenerating('ideas');
     setError(null);
+
+    // Update sources in state if provided
+    if (sources) {
+      setState((prev) => ({ ...prev, ideationSources: sources }));
+    }
 
     try {
       // Save business context to brand_kit
@@ -106,11 +117,20 @@ export function WizardContainer() {
         console.warn('Failed to save brand kit, continuing anyway');
       }
 
+      // Build request body with optional sources
+      const requestBody: Record<string, unknown> = { ...context };
+      if (sources) {
+        requestBody.sources = {
+          callTranscriptInsights: sources.callTranscript?.insights,
+          competitorAnalysis: sources.competitorInspiration?.analysis,
+        };
+      }
+
       // Generate lead magnet ideas
       const response = await fetch('/api/lead-magnet/ideate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(context),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -369,6 +389,8 @@ export function WizardContainer() {
                 hasSavedIdeas={!!savedIdeation}
                 savedIdeasDate={ideationGeneratedAt}
                 loading={generating !== 'idle'}
+                ideationSources={state.ideationSources}
+                onIdeationSourcesChange={handleIdeationSourcesChange}
               />
             )}
 

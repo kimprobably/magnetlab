@@ -9,6 +9,8 @@ import type {
   PostWriterInput,
   PostWriterResult,
   ChatMessage,
+  CallTranscriptInsights,
+  CompetitorAnalysis,
 } from '@/lib/types/lead-magnet';
 
 // Lazy initialization to ensure env vars are loaded
@@ -18,6 +20,142 @@ function getAnthropicClient(): Anthropic {
     throw new Error('ANTHROPIC_API_KEY is not set in environment variables');
   }
   return new Anthropic({ apiKey });
+}
+
+// =============================================================================
+// IDEATION SOURCES: TRANSCRIPT & COMPETITOR ANALYSIS
+// =============================================================================
+
+/**
+ * Analyze a sales/coaching call transcript to extract actionable insights
+ */
+export async function analyzeCallTranscript(
+  transcript: string
+): Promise<CallTranscriptInsights> {
+  const prompt = `You analyze sales/coaching call transcripts to extract actionable insights for lead magnet creation.
+
+Extract the following from this transcript:
+1. Pain Points - Direct quotes with frequency classification:
+   - "mentioned-once": appears once
+   - "recurring": mentioned 2-3 times or in different ways
+   - "dominant": major theme throughout the conversation
+2. Frequent Questions - What do prospects ask? Include context about when/why
+3. Transformation Outcomes - Map current state to desired state
+4. Objections - What holds them back? What's the underlying concern?
+5. Language Patterns - Extract exact phrases and terminology they use (for authentic copy)
+
+TRANSCRIPT:
+"""
+${transcript}
+"""
+
+Return ONLY valid JSON matching this exact structure:
+{
+  "painPoints": [
+    { "quote": "exact quote from transcript", "theme": "category/theme", "frequency": "mentioned-once|recurring|dominant" }
+  ],
+  "frequentQuestions": [
+    { "question": "the question asked", "context": "when/why they asked it" }
+  ],
+  "transformationOutcomes": [
+    { "currentState": "where they are now", "desiredState": "where they want to be" }
+  ],
+  "objections": [
+    { "objection": "what they said", "underlyingConcern": "the real fear/concern behind it" }
+  ],
+  "languagePatterns": ["exact phrase 1", "exact phrase 2"]
+}`;
+
+  const response = await getAnthropicClient().messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 4000,
+    messages: [{ role: 'user', content: prompt }],
+  });
+
+  const textContent = response.content.find((block) => block.type === 'text');
+  if (!textContent || textContent.type !== 'text') {
+    throw new Error('No text response from Claude');
+  }
+
+  try {
+    const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]) as CallTranscriptInsights;
+    }
+    return JSON.parse(textContent.text) as CallTranscriptInsights;
+  } catch {
+    throw new Error('Failed to parse transcript analysis response');
+  }
+}
+
+/**
+ * Analyze competitor/inspiration content to identify what makes it effective
+ */
+export async function analyzeCompetitorContent(
+  content: string,
+  userContext?: BusinessContext
+): Promise<CompetitorAnalysis> {
+  const archetypes = [
+    'single-breakdown', 'single-system', 'focused-toolkit', 'single-calculator',
+    'focused-directory', 'mini-training', 'one-story', 'prompt', 'assessment', 'workflow'
+  ];
+
+  const contextInfo = userContext
+    ? `\n\nUser's business context for adaptation suggestions:
+- Business: ${userContext.businessDescription}
+- Type: ${userContext.businessType}
+- Pain Points: ${userContext.urgentPains?.join(', ') || 'Not specified'}
+- Results: ${userContext.results?.join(', ') || 'Not specified'}`
+    : '';
+
+  const prompt = `You analyze lead magnets and promotional content to identify what makes them effective and how to adapt them.
+
+Available lead magnet archetypes: ${archetypes.join(', ')}
+
+Analyze this content:
+"""
+${content}
+"""
+${contextInfo}
+
+Provide:
+1. Archetype Detection - Which of the archetypes above does this match? (null if unclear)
+2. Format - Describe the format/structure (e.g., "5-page PDF checklist", "7-email sequence")
+3. Pain Point Addressed - What urgent problem does it solve?
+4. Effectiveness Factors - Why does/would this work? (List 3-5 specific factors)
+5. Adaptation Suggestions - How to create a version for the user's business (List 2-4 specific ideas)
+6. Original Title - Extract or infer the title of the lead magnet
+
+Return ONLY valid JSON:
+{
+  "detectedArchetype": "archetype-name" or null,
+  "format": "description of format",
+  "painPointAddressed": "the main pain point",
+  "effectivenessFactors": ["factor 1", "factor 2", "factor 3"],
+  "adaptationSuggestions": ["suggestion 1", "suggestion 2"],
+  "originalTitle": "title of the lead magnet"
+}`;
+
+  const response = await getAnthropicClient().messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 2000,
+    messages: [{ role: 'user', content: prompt }],
+  });
+
+  const textContent = response.content.find((block) => block.type === 'text');
+  if (!textContent || textContent.type !== 'text') {
+    throw new Error('No text response from Claude');
+  }
+
+  try {
+    const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]) as CompetitorAnalysis;
+    }
+    return JSON.parse(textContent.text) as CompetitorAnalysis;
+  } catch {
+    throw new Error('Failed to parse competitor analysis response');
+  }
 }
 
 // =============================================================================
@@ -53,8 +191,53 @@ TITLE FORMULAS:
 - [Number] [Things] That [Outcome] (+ [Bonus Element])`;
 
 export async function generateLeadMagnetIdeas(
-  context: BusinessContext
+  context: BusinessContext,
+  sources?: {
+    callTranscriptInsights?: CallTranscriptInsights;
+    competitorAnalysis?: CompetitorAnalysis;
+  }
 ): Promise<IdeationResult> {
+  // Build additional context from sources
+  let additionalContext = '';
+
+  if (sources?.callTranscriptInsights) {
+    const insights = sources.callTranscriptInsights;
+    additionalContext += `
+
+REAL CUSTOMER INSIGHTS FROM SALES CALLS:
+Pain points mentioned:
+${insights.painPoints.map((p) => `- "${p.quote}" (${p.frequency}, theme: ${p.theme})`).join('\n')}
+
+Questions asked:
+${insights.frequentQuestions.map((q) => `- "${q.question}" - ${q.context}`).join('\n')}
+
+Desired transformations:
+${insights.transformationOutcomes.map((t) => `- From: "${t.currentState}" To: "${t.desiredState}"`).join('\n')}
+
+Objections:
+${insights.objections.map((o) => `- "${o.objection}" (underlying concern: ${o.underlyingConcern})`).join('\n')}
+
+Their exact language (use in copy):
+${insights.languagePatterns.map((p) => `- "${p}"`).join('\n')}
+
+IMPORTANT: Prioritize concepts that directly address these real pain points using their actual language.`;
+  }
+
+  if (sources?.competitorAnalysis) {
+    const analysis = sources.competitorAnalysis;
+    additionalContext += `
+
+INSPIRATION FROM SUCCESSFUL LEAD MAGNET:
+- Original Title: "${analysis.originalTitle}"
+- Format: ${analysis.format}
+- Archetype: ${analysis.detectedArchetype || 'Unknown'}
+- Pain Addressed: ${analysis.painPointAddressed}
+- Why it works: ${analysis.effectivenessFactors.join(', ')}
+- Adaptation ideas: ${analysis.adaptationSuggestions.join(', ')}
+
+IMPORTANT: Include an adapted version of this format as one of your concepts, customized for this business.`;
+  }
+
   const prompt = `${IDEATION_SYSTEM_PROMPT}
 
 BUSINESS CONTEXT:
@@ -68,6 +251,7 @@ BUSINESS CONTEXT:
 - Results you've achieved: ${context.results.join('; ')}
 - Success example to break down: ${context.successExample || 'None specified'}
 - Business type: ${context.businessType}
+${additionalContext}
 
 Generate 10 lead magnet concepts (one for each archetype). For each, provide:
 1. archetype: The archetype key (e.g., "single-breakdown")
