@@ -8,6 +8,7 @@ import {
   qualificationQuestionFromRow,
   type QualificationQuestionRow,
 } from '@/lib/types/funnel';
+import { ApiErrors, logApiError } from '@/lib/api/errors';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -18,7 +19,7 @@ export async function GET(request: Request, { params }: RouteParams) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return ApiErrors.unauthorized();
     }
 
     const { id } = await params;
@@ -33,7 +34,7 @@ export async function GET(request: Request, { params }: RouteParams) {
       .single();
 
     if (funnelError || !funnel) {
-      return NextResponse.json({ error: 'Funnel page not found' }, { status: 404 });
+      return ApiErrors.notFound('Funnel page');
     }
 
     // Get questions
@@ -44,16 +45,16 @@ export async function GET(request: Request, { params }: RouteParams) {
       .order('question_order', { ascending: true });
 
     if (error) {
-      console.error('Get questions error:', error);
-      return NextResponse.json({ error: 'Failed to fetch questions' }, { status: 500 });
+      logApiError('funnel/questions/list', error, { funnelId: id });
+      return ApiErrors.databaseError('Failed to fetch questions');
     }
 
     const questions = (data as QualificationQuestionRow[]).map(qualificationQuestionFromRow);
 
     return NextResponse.json({ questions });
   } catch (error) {
-    console.error('Get questions error:', error);
-    return NextResponse.json({ error: 'Failed to fetch questions' }, { status: 500 });
+    logApiError('funnel/questions/list', error);
+    return ApiErrors.internalError('Failed to fetch questions');
   }
 }
 
@@ -62,7 +63,7 @@ export async function POST(request: Request, { params }: RouteParams) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return ApiErrors.unauthorized();
     }
 
     const { id } = await params;
@@ -71,17 +72,11 @@ export async function POST(request: Request, { params }: RouteParams) {
 
     // Validate required fields
     if (!body.questionText) {
-      return NextResponse.json(
-        { error: 'questionText is required' },
-        { status: 400 }
-      );
+      return ApiErrors.validationError('questionText is required');
     }
 
     if (!body.qualifyingAnswer || !['yes', 'no'].includes(body.qualifyingAnswer)) {
-      return NextResponse.json(
-        { error: 'qualifyingAnswer must be "yes" or "no"' },
-        { status: 400 }
-      );
+      return ApiErrors.validationError('qualifyingAnswer must be "yes" or "no"');
     }
 
     // Verify funnel ownership
@@ -93,7 +88,7 @@ export async function POST(request: Request, { params }: RouteParams) {
       .single();
 
     if (funnelError || !funnel) {
-      return NextResponse.json({ error: 'Funnel page not found' }, { status: 404 });
+      return ApiErrors.notFound('Funnel page');
     }
 
     // Get max order for this funnel
@@ -120,8 +115,8 @@ export async function POST(request: Request, { params }: RouteParams) {
       .single();
 
     if (error) {
-      console.error('Create question error:', error);
-      return NextResponse.json({ error: 'Failed to create question' }, { status: 500 });
+      logApiError('funnel/questions/create', error, { funnelId: id });
+      return ApiErrors.databaseError('Failed to create question');
     }
 
     return NextResponse.json(
@@ -129,8 +124,8 @@ export async function POST(request: Request, { params }: RouteParams) {
       { status: 201 }
     );
   } catch (error) {
-    console.error('Create question error:', error);
-    return NextResponse.json({ error: 'Failed to create question' }, { status: 500 });
+    logApiError('funnel/questions/create', error);
+    return ApiErrors.internalError('Failed to create question');
   }
 }
 
@@ -139,7 +134,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return ApiErrors.unauthorized();
     }
 
     const { id } = await params;
@@ -148,10 +143,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
 
     // Validate request body
     if (!body.questionIds || !Array.isArray(body.questionIds)) {
-      return NextResponse.json(
-        { error: 'questionIds array is required' },
-        { status: 400 }
-      );
+      return ApiErrors.validationError('questionIds array is required');
     }
 
     // Verify funnel ownership
@@ -163,7 +155,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       .single();
 
     if (funnelError || !funnel) {
-      return NextResponse.json({ error: 'Funnel page not found' }, { status: 404 });
+      return ApiErrors.notFound('Funnel page');
     }
 
     // Update each question's order
@@ -185,15 +177,15 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       .order('question_order', { ascending: true });
 
     if (error) {
-      console.error('Reorder questions error:', error);
-      return NextResponse.json({ error: 'Failed to reorder questions' }, { status: 500 });
+      logApiError('funnel/questions/reorder', error, { funnelId: id });
+      return ApiErrors.databaseError('Failed to reorder questions');
     }
 
     const questions = (data as QualificationQuestionRow[]).map(qualificationQuestionFromRow);
 
     return NextResponse.json({ questions });
   } catch (error) {
-    console.error('Reorder questions error:', error);
-    return NextResponse.json({ error: 'Failed to reorder questions' }, { status: 500 });
+    logApiError('funnel/questions/reorder', error);
+    return ApiErrors.internalError('Failed to reorder questions');
   }
 }

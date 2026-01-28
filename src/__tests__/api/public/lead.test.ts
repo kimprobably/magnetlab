@@ -9,26 +9,52 @@ interface TableResults {
   [tableName: string]: { data: unknown; error: unknown } | undefined;
 }
 
-function createMockSupabase() {
+interface MockChainable {
+  from: jest.Mock;
+  select: jest.Mock;
+  insert: jest.Mock;
+  update: jest.Mock;
+  eq: jest.Mock;
+  gte: jest.Mock;
+  single: jest.Mock;
+  _setTableResult: (table: string, result: { data: unknown; error: unknown }) => void;
+  _setSingleResults: (table: string, results: Array<{ data: unknown; error: unknown }>) => void;
+  _reset: () => void;
+}
+
+function createMockSupabase(): MockChainable {
   let tableResults: TableResults = {};
   let currentTable = '';
+  let isHeadQuery = false;
 
   // Track order of .single() calls for chained queries on same table
   const singleCallIndex: { [key: string]: number } = {};
   const singleResults: { [key: string]: Array<{ data: unknown; error: unknown }> } = {};
 
-  const chainable = {
+  const chainable: MockChainable = {
     from: jest.fn((table: string) => {
       currentTable = table;
+      isHeadQuery = false;
       return chainable;
     }),
-    select: jest.fn(() => chainable),
+    select: jest.fn((_cols?: string, opts?: { count?: string; head?: boolean }) => {
+      // Track if this is a head/count query (used for rate limiting)
+      isHeadQuery = opts?.head === true;
+      return chainable;
+    }),
     insert: jest.fn(() => chainable),
     update: jest.fn(() => chainable),
     eq: jest.fn(() => {
       // For qualification_questions, eq resolves directly (no .single())
       if (currentTable === 'qualification_questions') {
         return Promise.resolve(tableResults[currentTable] || { data: [], error: null });
+      }
+      return chainable;
+    }),
+    gte: jest.fn(() => {
+      // For rate limit queries (head: true), resolve with count: 0
+      if (isHeadQuery) {
+        return Promise.resolve({ count: 0, error: null });
       }
       return chainable;
     }),
@@ -51,6 +77,7 @@ function createMockSupabase() {
     },
     _reset: () => {
       tableResults = {};
+      isHeadQuery = false;
       Object.keys(singleCallIndex).forEach(k => delete singleCallIndex[k]);
       Object.keys(singleResults).forEach(k => delete singleResults[k]);
     },
@@ -91,21 +118,23 @@ describe('Public Lead Capture API', () => {
       const data = await response.json();
 
       expect(response.status).toBe(400);
-      expect(data.error).toBe('funnelPageId and email are required');
+      expect(data.error).toContain('funnelPageId');
+      expect(data.code).toBe('VALIDATION_ERROR');
     });
 
     it('should return 400 if email is missing', async () => {
       const request = new Request('http://localhost:3000/api/public/lead', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ funnelPageId: 'funnel-123' }),
+        body: JSON.stringify({ funnelPageId: '550e8400-e29b-41d4-a716-446655440000' }),
       });
 
       const response = await POST(request);
       const data = await response.json();
 
       expect(response.status).toBe(400);
-      expect(data.error).toBe('funnelPageId and email are required');
+      expect(data.error).toContain('Email');
+      expect(data.code).toBe('VALIDATION_ERROR');
     });
 
     it('should return 400 for invalid email format', async () => {
@@ -113,7 +142,7 @@ describe('Public Lead Capture API', () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          funnelPageId: 'funnel-123',
+          funnelPageId: '550e8400-e29b-41d4-a716-446655440000',
           email: 'invalid-email',
         }),
       });
@@ -122,7 +151,8 @@ describe('Public Lead Capture API', () => {
       const data = await response.json();
 
       expect(response.status).toBe(400);
-      expect(data.error).toBe('Invalid email format');
+      expect(data.error).toContain('email');
+      expect(data.code).toBe('VALIDATION_ERROR');
     });
 
     it('should return 404 if funnel page not found', async () => {
@@ -135,7 +165,7 @@ describe('Public Lead Capture API', () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          funnelPageId: 'nonexistent',
+          funnelPageId: '550e8400-e29b-41d4-a716-446655440099',
           email: 'test@example.com',
         }),
       });
@@ -148,11 +178,12 @@ describe('Public Lead Capture API', () => {
     });
 
     it('should return 404 if funnel page is not published', async () => {
+      const funnelId = '550e8400-e29b-41d4-a716-446655440100';
       mockSupabaseClient._setTableResult('funnel_pages', {
         data: {
-          id: 'funnel-123',
-          user_id: 'user-123',
-          lead_magnet_id: 'lm-123',
+          id: funnelId,
+          user_id: '550e8400-e29b-41d4-a716-446655440101',
+          lead_magnet_id: '550e8400-e29b-41d4-a716-446655440102',
           slug: 'test',
           is_published: false,
         },
@@ -163,7 +194,7 @@ describe('Public Lead Capture API', () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          funnelPageId: 'funnel-123',
+          funnelPageId: funnelId,
           email: 'test@example.com',
         }),
       });
@@ -176,13 +207,18 @@ describe('Public Lead Capture API', () => {
     });
 
     it('should create lead successfully', async () => {
+      const funnelId = '550e8400-e29b-41d4-a716-446655440200';
+      const userId = '550e8400-e29b-41d4-a716-446655440201';
+      const leadMagnetId = '550e8400-e29b-41d4-a716-446655440202';
+      const leadId = '550e8400-e29b-41d4-a716-446655440203';
+
       // Set up ordered results: funnel_pages query, then funnel_leads insert, then lead_magnets
       mockSupabaseClient._setSingleResults('funnel_pages', [
         {
           data: {
-            id: 'funnel-123',
-            user_id: 'user-123',
-            lead_magnet_id: 'lm-123',
+            id: funnelId,
+            user_id: userId,
+            lead_magnet_id: leadMagnetId,
             slug: 'test',
             is_published: true,
           },
@@ -192,7 +228,7 @@ describe('Public Lead Capture API', () => {
       mockSupabaseClient._setSingleResults('funnel_leads', [
         {
           data: {
-            id: 'lead-123',
+            id: leadId,
             email: 'test@example.com',
             name: 'John Doe',
             utm_source: 'linkedin',
@@ -211,7 +247,7 @@ describe('Public Lead Capture API', () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          funnelPageId: 'funnel-123',
+          funnelPageId: funnelId,
           email: 'TEST@EXAMPLE.COM', // Should be lowercased
           name: '  John Doe  ', // Should be trimmed
           utmSource: 'linkedin',
@@ -224,17 +260,22 @@ describe('Public Lead Capture API', () => {
       const data = await response.json();
 
       expect(response.status).toBe(201);
-      expect(data.leadId).toBe('lead-123');
+      expect(data.leadId).toBe(leadId);
       expect(data.success).toBe(true);
     });
 
     it('should normalize email to lowercase', async () => {
+      const funnelId = '550e8400-e29b-41d4-a716-446655440300';
+      const userId = '550e8400-e29b-41d4-a716-446655440301';
+      const leadMagnetId = '550e8400-e29b-41d4-a716-446655440302';
+      const leadId = '550e8400-e29b-41d4-a716-446655440303';
+
       mockSupabaseClient._setSingleResults('funnel_pages', [
         {
           data: {
-            id: 'funnel-123',
-            user_id: 'user-123',
-            lead_magnet_id: 'lm-123',
+            id: funnelId,
+            user_id: userId,
+            lead_magnet_id: leadMagnetId,
             slug: 'test',
             is_published: true,
           },
@@ -242,7 +283,7 @@ describe('Public Lead Capture API', () => {
         },
       ]);
       mockSupabaseClient._setSingleResults('funnel_leads', [
-        { data: { id: 'lead-123', email: 'test@example.com', created_at: '2025-01-26T00:00:00Z' }, error: null },
+        { data: { id: leadId, email: 'test@example.com', created_at: '2025-01-26T00:00:00Z' }, error: null },
       ]);
       mockSupabaseClient._setSingleResults('lead_magnets', [
         { data: { title: 'Test' }, error: null },
@@ -254,7 +295,7 @@ describe('Public Lead Capture API', () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          funnelPageId: 'funnel-123',
+          funnelPageId: funnelId,
           email: 'TEST@Example.COM',
         }),
       });
@@ -275,21 +316,25 @@ describe('Public Lead Capture API', () => {
       const request = new Request('http://localhost:3000/api/public/lead', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ answers: {} }),
+        body: JSON.stringify({ answers: { 'q-1': 'yes' } }),
       });
 
       const response = await PATCH(request);
       const data = await response.json();
 
       expect(response.status).toBe(400);
-      expect(data.error).toBe('leadId and answers are required');
+      expect(data.error).toContain('leadId');
+      expect(data.code).toBe('VALIDATION_ERROR');
     });
 
     it('should return 400 if answers is not an object', async () => {
       const request = new Request('http://localhost:3000/api/public/lead', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leadId: 'lead-123', answers: 'invalid' }),
+        body: JSON.stringify({
+          leadId: '550e8400-e29b-41d4-a716-446655440000',
+          answers: 'invalid',
+        }),
       });
 
       const response = await PATCH(request);
@@ -307,7 +352,7 @@ describe('Public Lead Capture API', () => {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          leadId: 'nonexistent',
+          leadId: '550e8400-e29b-41d4-a716-446655440000',
           answers: { 'q-1': 'yes' },
         }),
       });
@@ -320,13 +365,18 @@ describe('Public Lead Capture API', () => {
     });
 
     it('should determine qualification based on answers', async () => {
+      const leadId = '550e8400-e29b-41d4-a716-446655440001';
+      const funnelPageId = '550e8400-e29b-41d4-a716-446655440002';
+      const userId = '550e8400-e29b-41d4-a716-446655440003';
+      const leadMagnetId = '550e8400-e29b-41d4-a716-446655440004';
+
       // Setup funnel_leads results for: get lead, then update lead
       mockSupabaseClient._setSingleResults('funnel_leads', [
         {
           data: {
-            id: 'lead-123',
-            funnel_page_id: 'funnel-123',
-            user_id: 'user-123',
+            id: leadId,
+            funnel_page_id: funnelPageId,
+            user_id: userId,
             email: 'test@example.com',
             name: 'Test',
           },
@@ -334,7 +384,7 @@ describe('Public Lead Capture API', () => {
         },
         {
           data: {
-            id: 'lead-123',
+            id: leadId,
             utm_source: null,
             utm_medium: null,
             utm_campaign: null,
@@ -354,7 +404,7 @@ describe('Public Lead Capture API', () => {
       });
 
       mockSupabaseClient._setSingleResults('funnel_pages', [
-        { data: { slug: 'test', lead_magnet_id: 'lm-123' }, error: null },
+        { data: { slug: 'test', lead_magnet_id: leadMagnetId }, error: null },
       ]);
       mockSupabaseClient._setSingleResults('lead_magnets', [
         { data: { title: 'Test Lead Magnet' }, error: null },
@@ -364,7 +414,7 @@ describe('Public Lead Capture API', () => {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          leadId: 'lead-123',
+          leadId,
           answers: { 'q-1': 'yes', 'q-2': 'no' }, // Both match qualifying answers
         }),
       });
@@ -378,12 +428,17 @@ describe('Public Lead Capture API', () => {
     });
 
     it('should mark as not qualified if any answer does not match', async () => {
+      const leadId = '550e8400-e29b-41d4-a716-446655440010';
+      const funnelPageId = '550e8400-e29b-41d4-a716-446655440011';
+      const userId = '550e8400-e29b-41d4-a716-446655440012';
+      const leadMagnetId = '550e8400-e29b-41d4-a716-446655440013';
+
       mockSupabaseClient._setSingleResults('funnel_leads', [
         {
           data: {
-            id: 'lead-123',
-            funnel_page_id: 'funnel-123',
-            user_id: 'user-123',
+            id: leadId,
+            funnel_page_id: funnelPageId,
+            user_id: userId,
             email: 'test@example.com',
             name: 'Test',
           },
@@ -391,7 +446,7 @@ describe('Public Lead Capture API', () => {
         },
         {
           data: {
-            id: 'lead-123',
+            id: leadId,
             utm_source: null,
             utm_medium: null,
             utm_campaign: null,
@@ -410,7 +465,7 @@ describe('Public Lead Capture API', () => {
       });
 
       mockSupabaseClient._setSingleResults('funnel_pages', [
-        { data: { slug: 'test', lead_magnet_id: 'lm-123' }, error: null },
+        { data: { slug: 'test', lead_magnet_id: leadMagnetId }, error: null },
       ]);
       mockSupabaseClient._setSingleResults('lead_magnets', [
         { data: { title: 'Test' }, error: null },
@@ -420,7 +475,7 @@ describe('Public Lead Capture API', () => {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          leadId: 'lead-123',
+          leadId,
           answers: { 'q-1': 'yes', 'q-2': 'no' }, // q-2 doesn't match
         }),
       });

@@ -4,6 +4,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
+import { ApiErrors, logApiError } from '@/lib/api/errors';
 
 // Maximum leads to export at once to prevent memory issues
 const MAX_EXPORT_LIMIT = 10000;
@@ -12,7 +13,7 @@ export async function GET(request: Request) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return ApiErrors.unauthorized();
     }
 
     const { searchParams } = new URL(request.url);
@@ -57,12 +58,12 @@ export async function GET(request: Request) {
     const { data, error } = await query;
 
     if (error) {
-      console.error('Export leads error:', error);
-      return NextResponse.json({ error: 'Failed to export leads' }, { status: 500 });
+      logApiError('leads/export', error, { userId: session.user.id });
+      return ApiErrors.databaseError('Failed to export leads');
     }
 
     if (!data || data.length === 0) {
-      return NextResponse.json({ error: 'No leads to export' }, { status: 404 });
+      return ApiErrors.notFound('No leads to export');
     }
 
     // Build CSV
@@ -111,8 +112,8 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
-    console.error('Export leads error:', error);
-    return NextResponse.json({ error: 'Failed to export leads' }, { status: 500 });
+    logApiError('leads/export', error);
+    return ApiErrors.internalError('Failed to export leads');
   }
 }
 

@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
 import { funnelPageFromRow, type FunnelPageRow } from '@/lib/types/funnel';
+import { ApiErrors, logApiError } from '@/lib/api/errors';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -15,7 +16,7 @@ export async function POST(request: Request, { params }: RouteParams) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return ApiErrors.unauthorized();
     }
 
     const { id } = await params;
@@ -23,10 +24,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     const { publish } = body;
 
     if (typeof publish !== 'boolean') {
-      return NextResponse.json(
-        { error: 'publish must be a boolean' },
-        { status: 400 }
-      );
+      return ApiErrors.validationError('publish must be a boolean');
     }
 
     const supabase = createSupabaseAdminClient();
@@ -40,7 +38,7 @@ export async function POST(request: Request, { params }: RouteParams) {
       .single();
 
     if (fetchError || !funnel) {
-      return NextResponse.json({ error: 'Funnel page not found' }, { status: 404 });
+      return ApiErrors.notFound('Funnel page');
     }
 
     // Check if user has username set (required for publishing)
@@ -52,18 +50,12 @@ export async function POST(request: Request, { params }: RouteParams) {
         .single();
 
       if (!user?.username) {
-        return NextResponse.json(
-          { error: 'You must set a username before publishing. Go to Settings to set your username.' },
-          { status: 400 }
-        );
+        return ApiErrors.validationError('You must set a username before publishing. Go to Settings to set your username.');
       }
 
       // Validate funnel has required fields
       if (!funnel.optin_headline) {
-        return NextResponse.json(
-          { error: 'Opt-in headline is required before publishing' },
-          { status: 400 }
-        );
+        return ApiErrors.validationError('Opt-in headline is required before publishing');
       }
     }
 
@@ -85,8 +77,8 @@ export async function POST(request: Request, { params }: RouteParams) {
       .single();
 
     if (error) {
-      console.error('Publish funnel error:', error);
-      return NextResponse.json({ error: 'Failed to update publish status' }, { status: 500 });
+      logApiError('funnel/publish', error, { userId: session.user.id, funnelId: id });
+      return ApiErrors.databaseError('Failed to update publish status');
     }
 
     // Get username for URL
@@ -105,7 +97,7 @@ export async function POST(request: Request, { params }: RouteParams) {
       publicUrl,
     });
   } catch (error) {
-    console.error('Publish funnel error:', error);
-    return NextResponse.json({ error: 'Failed to update publish status' }, { status: 500 });
+    logApiError('funnel/publish', error);
+    return ApiErrors.internalError('Failed to update publish status');
   }
 }

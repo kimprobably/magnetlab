@@ -4,6 +4,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
+import { ApiErrors, logApiError } from '@/lib/api/errors';
 
 // Pagination limits to prevent memory exhaustion
 const MAX_LIMIT = 100;
@@ -32,7 +33,7 @@ export async function GET(request: Request) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return ApiErrors.unauthorized();
     }
 
     const { searchParams } = new URL(request.url);
@@ -46,7 +47,7 @@ export async function GET(request: Request) {
     const rawOffset = parseInt(searchParams.get('offset') || '0');
 
     if (isNaN(rawLimit) || isNaN(rawOffset)) {
-      return NextResponse.json({ error: 'Invalid pagination parameters' }, { status: 400 });
+      return ApiErrors.validationError('Invalid pagination parameters');
     }
 
     const limit = Math.min(Math.max(1, rawLimit), MAX_LIMIT);
@@ -100,8 +101,8 @@ export async function GET(request: Request) {
     const { data, error, count } = await query;
 
     if (error) {
-      console.error('List leads error:', error);
-      return NextResponse.json({ error: 'Failed to fetch leads' }, { status: 500 });
+      logApiError('leads/list', error, { userId: session.user.id });
+      return ApiErrors.databaseError('Failed to fetch leads');
     }
 
     // Transform to include funnel info
@@ -127,7 +128,7 @@ export async function GET(request: Request) {
       offset,
     });
   } catch (error) {
-    console.error('List leads error:', error);
-    return NextResponse.json({ error: 'Failed to fetch leads' }, { status: 500 });
+    logApiError('leads/list', error);
+    return ApiErrors.internalError('Failed to fetch leads');
   }
 }

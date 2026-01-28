@@ -4,6 +4,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { createSupabaseServerClient } from '@/lib/utils/supabase-server';
+import { ApiErrors, logApiError } from '@/lib/api/errors';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -14,7 +15,7 @@ export async function GET(request: Request, { params }: RouteParams) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return ApiErrors.unauthorized();
     }
 
     const { id } = await params;
@@ -28,13 +29,13 @@ export async function GET(request: Request, { params }: RouteParams) {
       .single();
 
     if (error || !data) {
-      return NextResponse.json({ error: 'Lead magnet not found' }, { status: 404 });
+      return ApiErrors.notFound('Lead magnet');
     }
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error('Get lead magnet error:', error);
-    return NextResponse.json({ error: 'Failed to get lead magnet' }, { status: 500 });
+    logApiError('lead-magnet/get', error);
+    return ApiErrors.internalError('Failed to get lead magnet');
   }
 }
 
@@ -43,7 +44,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return ApiErrors.unauthorized();
     }
 
     const { id } = await params;
@@ -63,14 +64,14 @@ export async function PUT(request: Request, { params }: RouteParams) {
       .single();
 
     if (error) {
-      console.error('Update error:', error);
-      return NextResponse.json({ error: 'Failed to update lead magnet' }, { status: 500 });
+      logApiError('lead-magnet/update', error, { userId: session.user.id, leadMagnetId: id });
+      return ApiErrors.databaseError('Failed to update lead magnet');
     }
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error('Update lead magnet error:', error);
-    return NextResponse.json({ error: 'Failed to update lead magnet' }, { status: 500 });
+    logApiError('lead-magnet/update', error);
+    return ApiErrors.internalError('Failed to update lead magnet');
   }
 }
 
@@ -79,7 +80,7 @@ export async function DELETE(request: Request, { params }: RouteParams) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return ApiErrors.unauthorized();
     }
 
     const { id } = await params;
@@ -94,7 +95,7 @@ export async function DELETE(request: Request, { params }: RouteParams) {
       .single();
 
     if (findError || !leadMagnet) {
-      return NextResponse.json({ error: 'Lead magnet not found' }, { status: 404 });
+      return ApiErrors.notFound('Lead magnet');
     }
 
     // Get all funnel pages for this lead magnet
@@ -140,13 +141,13 @@ export async function DELETE(request: Request, { params }: RouteParams) {
       .eq('user_id', session.user.id);
 
     if (error) {
-      console.error('Delete lead magnet error:', error);
-      return NextResponse.json({ error: 'Failed to delete lead magnet' }, { status: 500 });
+      logApiError('lead-magnet/delete', error, { userId: session.user.id, leadMagnetId: id });
+      return ApiErrors.databaseError('Failed to delete lead magnet');
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Delete lead magnet error:', error);
-    return NextResponse.json({ error: 'Failed to delete lead magnet' }, { status: 500 });
+    logApiError('lead-magnet/delete', error);
+    return ApiErrors.internalError('Failed to delete lead magnet');
   }
 }

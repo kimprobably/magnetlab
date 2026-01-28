@@ -5,13 +5,14 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
+import { ApiErrors, logApiError } from '@/lib/api/errors';
 
 // GET - Get brand kit
 export async function GET() {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return ApiErrors.unauthorized();
     }
 
     const supabase = createSupabaseAdminClient();
@@ -24,8 +25,8 @@ export async function GET() {
 
     if (error && error.code !== 'PGRST116') {
       // PGRST116 = no rows returned
-      console.error('Get brand kit error:', error);
-      return NextResponse.json({ error: 'Failed to fetch brand kit' }, { status: 500 });
+      logApiError('brand-kit/get', error, { userId: session.user.id });
+      return ApiErrors.databaseError('Failed to fetch brand kit');
     }
 
     // Return both brand kit and saved ideation
@@ -35,26 +36,20 @@ export async function GET() {
       ideationGeneratedAt: data?.ideation_generated_at || null,
     });
   } catch (error) {
-    console.error('Get brand kit error:', error);
-    return NextResponse.json({ error: 'Failed to fetch brand kit' }, { status: 500 });
+    logApiError('brand-kit/get', error);
+    return ApiErrors.internalError('Failed to fetch brand kit');
   }
 }
 
 // POST - Create or update brand kit
 export async function POST(request: Request) {
-  console.log('[Brand Kit API] POST request received');
-
   try {
     const session = await auth();
-    console.log('[Brand Kit API] Session:', session?.user?.id ? 'authenticated' : 'not authenticated');
-
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return ApiErrors.unauthorized();
     }
 
     const body = await request.json();
-    console.log('[Brand Kit API] Body keys:', Object.keys(body));
-
     const supabase = createSupabaseAdminClient();
 
     const brandKitData = {
@@ -74,8 +69,6 @@ export async function POST(request: Request) {
       style_profile: body.styleProfile,
     };
 
-    console.log('[Brand Kit API] Upserting brand kit for user:', session.user.id);
-
     const { data, error } = await supabase
       .from('brand_kits')
       .upsert(brandKitData, { onConflict: 'user_id' })
@@ -83,15 +76,13 @@ export async function POST(request: Request) {
       .single();
 
     if (error) {
-      console.error('[Brand Kit API] Supabase error:', error.message, error.code, error.details);
-      return NextResponse.json({ error: `Failed to save brand kit: ${error.message}` }, { status: 500 });
+      logApiError('brand-kit/save', error, { userId: session.user.id });
+      return ApiErrors.databaseError('Failed to save brand kit');
     }
 
-    console.log('[Brand Kit API] Successfully saved brand kit');
     return NextResponse.json(data);
   } catch (error) {
-    console.error('[Brand Kit API] Unexpected error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return NextResponse.json({ error: `Failed to save brand kit: ${errorMessage}` }, { status: 500 });
+    logApiError('brand-kit/save', error);
+    return ApiErrors.internalError('Failed to save brand kit');
   }
 }

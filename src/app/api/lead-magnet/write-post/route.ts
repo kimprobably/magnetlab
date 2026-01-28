@@ -4,13 +4,14 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { generatePostVariations } from '@/lib/ai/lead-magnet-generator';
+import { ApiErrors, logApiError } from '@/lib/api/errors';
 import type { PostWriterInput } from '@/lib/types/lead-magnet';
 
 export async function POST(request: Request) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return ApiErrors.unauthorized();
     }
 
     const body = await request.json();
@@ -18,20 +19,14 @@ export async function POST(request: Request) {
 
     // Validate required fields
     if (!input.leadMagnetTitle || !input.contents || !input.problemSolved) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      );
+      return ApiErrors.validationError('Missing required fields: leadMagnetTitle, contents, problemSolved');
     }
 
     const result = await generatePostVariations(input);
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error('Write post error:', error);
-    return NextResponse.json(
-      { error: 'Failed to generate post variations' },
-      { status: 500 }
-    );
+    logApiError('lead-magnet/write-post', error);
+    return ApiErrors.aiError('Failed to generate post variations');
   }
 }

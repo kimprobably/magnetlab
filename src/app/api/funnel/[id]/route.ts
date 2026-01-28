@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
 import { funnelPageFromRow, type FunnelPageRow } from '@/lib/types/funnel';
+import { ApiErrors, logApiError } from '@/lib/api/errors';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -15,7 +16,7 @@ export async function GET(request: Request, { params }: RouteParams) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return ApiErrors.unauthorized();
     }
 
     const { id } = await params;
@@ -29,13 +30,13 @@ export async function GET(request: Request, { params }: RouteParams) {
       .single();
 
     if (error || !data) {
-      return NextResponse.json({ error: 'Funnel page not found' }, { status: 404 });
+      return ApiErrors.notFound('Funnel page');
     }
 
     return NextResponse.json({ funnel: funnelPageFromRow(data as FunnelPageRow) });
   } catch (error) {
-    console.error('Get funnel error:', error);
-    return NextResponse.json({ error: 'Failed to get funnel page' }, { status: 500 });
+    logApiError('funnel/get', error);
+    return ApiErrors.internalError('Failed to get funnel page');
   }
 }
 
@@ -44,7 +45,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return ApiErrors.unauthorized();
     }
 
     const { id } = await params;
@@ -81,10 +82,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
         .single();
 
       if (existing) {
-        return NextResponse.json(
-          { error: 'A funnel with this slug already exists' },
-          { status: 409 }
-        );
+        return ApiErrors.conflict('A funnel with this slug already exists');
       }
     }
 
@@ -97,18 +95,18 @@ export async function PUT(request: Request, { params }: RouteParams) {
       .single();
 
     if (error) {
-      console.error('Update funnel error:', error);
-      return NextResponse.json({ error: 'Failed to update funnel page' }, { status: 500 });
+      logApiError('funnel/update', error, { userId: session.user.id, funnelId: id });
+      return ApiErrors.databaseError('Failed to update funnel page');
     }
 
     if (!data) {
-      return NextResponse.json({ error: 'Funnel page not found' }, { status: 404 });
+      return ApiErrors.notFound('Funnel page');
     }
 
     return NextResponse.json({ funnel: funnelPageFromRow(data as FunnelPageRow) });
   } catch (error) {
-    console.error('Update funnel error:', error);
-    return NextResponse.json({ error: 'Failed to update funnel page' }, { status: 500 });
+    logApiError('funnel/update', error);
+    return ApiErrors.internalError('Failed to update funnel page');
   }
 }
 
@@ -117,7 +115,7 @@ export async function DELETE(request: Request, { params }: RouteParams) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return ApiErrors.unauthorized();
     }
 
     const { id } = await params;
@@ -132,7 +130,7 @@ export async function DELETE(request: Request, { params }: RouteParams) {
       .single();
 
     if (findError || !funnel) {
-      return NextResponse.json({ error: 'Funnel page not found' }, { status: 404 });
+      return ApiErrors.notFound('Funnel page');
     }
 
     // Cascade delete related records
@@ -162,13 +160,13 @@ export async function DELETE(request: Request, { params }: RouteParams) {
       .eq('user_id', session.user.id);
 
     if (error) {
-      console.error('Delete funnel error:', error);
-      return NextResponse.json({ error: 'Failed to delete funnel page' }, { status: 500 });
+      logApiError('funnel/delete', error, { userId: session.user.id, funnelId: id });
+      return ApiErrors.databaseError('Failed to delete funnel page');
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Delete funnel error:', error);
-    return NextResponse.json({ error: 'Failed to delete funnel page' }, { status: 500 });
+    logApiError('funnel/delete', error);
+    return ApiErrors.internalError('Failed to delete funnel page');
   }
 }

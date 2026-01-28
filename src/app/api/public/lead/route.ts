@@ -1,53 +1,42 @@
 // API Route: Public Lead Capture
 // POST /api/public/lead - Capture email from opt-in page
-// POST /api/public/lead/qualify - Submit qualification answers
+// PATCH /api/public/lead - Submit qualification answers
 // No auth required
 
 import { NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
 import { deliverWebhook } from '@/lib/webhooks/sender';
 import { triggerEmailSequenceIfActive } from '@/lib/services/email-sequence-trigger';
+import { leadCaptureSchema, leadQualificationSchema, validateBody } from '@/lib/validations/api';
 
-// Simple in-memory rate limiting (10 requests per minute per IP)
-// Note: In-memory rate limiting is limited in serverless environments
-// For production, consider using Upstash Redis or Vercel KV for distributed rate limiting
-const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
-const RATE_LIMIT = 10;
-const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+// Rate limiting configuration
+// Uses database-based checking for serverless compatibility
+const RATE_LIMIT_WINDOW_MINUTES = 1;
+const RATE_LIMIT_MAX_LEADS_PER_IP = 5; // Max leads from same IP per minute
 
-// Clean up old entries periodically to prevent memory leaks
-const CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutes
-let lastCleanup = Date.now();
+/**
+ * Check rate limit using database query
+ * This works in serverless environments unlike in-memory Maps
+ */
+async function checkRateLimitDb(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  ip: string
+): Promise<boolean> {
+  const windowStart = new Date(Date.now() - RATE_LIMIT_WINDOW_MINUTES * 60 * 1000).toISOString();
 
-function cleanupRateLimitMap() {
-  const now = Date.now();
-  if (now - lastCleanup < CLEANUP_INTERVAL) return;
+  const { count, error } = await supabase
+    .from('funnel_leads')
+    .select('*', { count: 'exact', head: true })
+    .eq('ip_address', ip)
+    .gte('created_at', windowStart);
 
-  lastCleanup = now;
-  for (const [ip, entry] of rateLimitMap.entries()) {
-    if (now > entry.resetTime) {
-      rateLimitMap.delete(ip);
-    }
-  }
-}
-
-function checkRateLimit(ip: string): boolean {
-  cleanupRateLimitMap();
-
-  const now = Date.now();
-  const entry = rateLimitMap.get(ip);
-
-  if (!entry || now > entry.resetTime) {
-    rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
+  if (error) {
+    // On error, allow the request (fail open for availability)
+    console.warn('Rate limit check failed:', error.message);
     return true;
   }
 
-  if (entry.count >= RATE_LIMIT) {
-    return false;
-  }
-
-  entry.count++;
-  return true;
+  return (count ?? 0) < RATE_LIMIT_MAX_LEADS_PER_IP;
 }
 
 // Get client IP securely - prioritize Vercel's trusted headers
@@ -70,37 +59,29 @@ function getClientIp(request: Request): string {
 // POST - Capture initial lead (email)
 export async function POST(request: Request) {
   try {
-    // Rate limiting
     const ip = getClientIp(request);
+    const body = await request.json();
 
-    if (!checkRateLimit(ip)) {
+    // Validate input with Zod schema
+    const validation = validateBody(body, leadCaptureSchema);
+    if (!validation.success) {
       return NextResponse.json(
-        { error: 'Too many requests. Please try again later.' },
+        { error: validation.error, code: 'VALIDATION_ERROR' },
+        { status: 400 }
+      );
+    }
+
+    const { funnelPageId, email, name, utmSource, utmMedium, utmCampaign } = validation.data;
+    const supabase = createSupabaseAdminClient();
+
+    // Database-based rate limiting (serverless-compatible)
+    const isAllowed = await checkRateLimitDb(supabase, ip);
+    if (!isAllowed) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please try again later.', code: 'RATE_LIMITED' },
         { status: 429 }
       );
     }
-
-    const body = await request.json();
-    const { funnelPageId, email, name, utmSource, utmMedium, utmCampaign } = body;
-
-    // Validate required fields
-    if (!funnelPageId || !email) {
-      return NextResponse.json(
-        { error: 'funnelPageId and email are required' },
-        { status: 400 }
-      );
-    }
-
-    // Validate email format (stricter regex)
-    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-    if (!emailRegex.test(email) || email.includes('..')) {
-      return NextResponse.json(
-        { error: 'Invalid email format' },
-        { status: 400 }
-      );
-    }
-
-    const supabase = createSupabaseAdminClient();
 
     // Verify funnel page exists and is published
     const { data: funnel, error: funnelError } = await supabase
@@ -110,25 +91,26 @@ export async function POST(request: Request) {
       .single();
 
     if (funnelError || !funnel) {
-      return NextResponse.json({ error: 'Page not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Page not found', code: 'NOT_FOUND' }, { status: 404 });
     }
 
     if (!funnel.is_published) {
-      return NextResponse.json({ error: 'Page not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Page not found', code: 'NOT_FOUND' }, { status: 404 });
     }
 
-    // Create lead record
+    // Create lead record (email already normalized by schema)
     const { data: lead, error: leadError } = await supabase
       .from('funnel_leads')
       .insert({
         funnel_page_id: funnelPageId,
         lead_magnet_id: funnel.lead_magnet_id,
         user_id: funnel.user_id,
-        email: email.toLowerCase().trim(),
-        name: name?.trim() || null,
+        email, // Already lowercased and trimmed by schema
+        name: name || null,
         utm_source: utmSource || null,
         utm_medium: utmMedium || null,
         utm_campaign: utmCampaign || null,
+        ip_address: ip !== 'unknown' ? ip : null,
       })
       .select()
       .single();
@@ -184,15 +166,17 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   try {
     const body = await request.json();
-    const { leadId, answers } = body;
 
-    if (!leadId || !answers || typeof answers !== 'object') {
+    // Validate input with Zod schema
+    const validation = validateBody(body, leadQualificationSchema);
+    if (!validation.success) {
       return NextResponse.json(
-        { error: 'leadId and answers are required' },
+        { error: validation.error, code: 'VALIDATION_ERROR' },
         { status: 400 }
       );
     }
 
+    const { leadId, answers } = validation.data;
     const supabase = createSupabaseAdminClient();
 
     // Get lead and funnel page
@@ -203,7 +187,7 @@ export async function PATCH(request: Request) {
       .single();
 
     if (leadError || !lead) {
-      return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Lead not found', code: 'NOT_FOUND' }, { status: 404 });
     }
 
     // Get qualifying answers for questions

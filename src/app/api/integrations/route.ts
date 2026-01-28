@@ -11,13 +11,14 @@ import {
   listUserIntegrations,
   upsertUserIntegration,
 } from '@/lib/utils/encrypted-storage';
+import { ApiErrors, logApiError } from '@/lib/api/errors';
 
 // GET - List all integrations for the user
 export async function GET() {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return ApiErrors.unauthorized();
     }
 
     // List integrations without exposing API keys (decryption not performed)
@@ -27,8 +28,8 @@ export async function GET() {
       integrations,
     });
   } catch (error) {
-    console.error('Error in integrations GET:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    logApiError('integrations/list', error);
+    return ApiErrors.internalError('Failed to list integrations');
   }
 }
 
@@ -37,14 +38,14 @@ export async function POST(request: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return ApiErrors.unauthorized();
     }
 
     const body = await request.json();
     const { service, api_key, webhook_secret, metadata } = body;
 
     if (!service) {
-      return NextResponse.json({ error: 'Service is required' }, { status: 400 });
+      return ApiErrors.validationError('Service is required');
     }
 
     // Upsert the integration with encrypted API key
@@ -62,7 +63,7 @@ export async function POST(request: NextRequest) {
       message: 'Integration saved successfully',
     });
   } catch (error) {
-    console.error('Error in integrations POST:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    logApiError('integrations/save', error);
+    return ApiErrors.internalError('Failed to save integration');
   }
 }

@@ -6,20 +6,21 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
 import { funnelPageFromRow, type FunnelPageRow } from '@/lib/types/funnel';
+import { ApiErrors, logApiError } from '@/lib/api/errors';
 
 // GET - Get funnel page for a lead magnet
 export async function GET(request: Request) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return ApiErrors.unauthorized();
     }
 
     const { searchParams } = new URL(request.url);
     const leadMagnetId = searchParams.get('leadMagnetId');
 
     if (!leadMagnetId) {
-      return NextResponse.json({ error: 'leadMagnetId is required' }, { status: 400 });
+      return ApiErrors.validationError('leadMagnetId is required');
     }
 
     const supabase = createSupabaseAdminClient();
@@ -33,7 +34,7 @@ export async function GET(request: Request) {
       .single();
 
     if (lmError || !leadMagnet) {
-      return NextResponse.json({ error: 'Lead magnet not found' }, { status: 404 });
+      return ApiErrors.notFound('Lead magnet');
     }
 
     // Get funnel page
@@ -46,8 +47,8 @@ export async function GET(request: Request) {
 
     if (error && error.code !== 'PGRST116') {
       // PGRST116 = no rows returned, which is fine
-      console.error('Get funnel error:', error);
-      return NextResponse.json({ error: 'Failed to fetch funnel page' }, { status: 500 });
+      logApiError('funnel/get', error, { userId: session.user.id, leadMagnetId });
+      return ApiErrors.databaseError('Failed to fetch funnel page');
     }
 
     if (!data) {
@@ -56,8 +57,8 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ funnel: funnelPageFromRow(data as FunnelPageRow) });
   } catch (error) {
-    console.error('Get funnel error:', error);
-    return NextResponse.json({ error: 'Failed to fetch funnel page' }, { status: 500 });
+    logApiError('funnel/get', error);
+    return ApiErrors.internalError('Failed to fetch funnel page');
   }
 }
 
@@ -66,17 +67,14 @@ export async function POST(request: Request) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return ApiErrors.unauthorized();
     }
 
     const body = await request.json();
     const { leadMagnetId, slug, ...funnelData } = body;
 
     if (!leadMagnetId || !slug) {
-      return NextResponse.json(
-        { error: 'leadMagnetId and slug are required' },
-        { status: 400 }
-      );
+      return ApiErrors.validationError('leadMagnetId and slug are required');
     }
 
     const supabase = createSupabaseAdminClient();
@@ -90,7 +88,7 @@ export async function POST(request: Request) {
       .single();
 
     if (lmError || !leadMagnet) {
-      return NextResponse.json({ error: 'Lead magnet not found' }, { status: 404 });
+      return ApiErrors.notFound('Lead magnet');
     }
 
     // Check if funnel already exists for this lead magnet
@@ -101,10 +99,7 @@ export async function POST(request: Request) {
       .single();
 
     if (existing) {
-      return NextResponse.json(
-        { error: 'Funnel page already exists for this lead magnet' },
-        { status: 409 }
-      );
+      return ApiErrors.conflict('Funnel page already exists for this lead magnet');
     }
 
     // Check for slug collision and auto-increment if needed
@@ -151,14 +146,11 @@ export async function POST(request: Request) {
       .single();
 
     if (error) {
-      console.error('Create funnel error:', error);
+      logApiError('funnel/create', error, { userId: session.user.id, leadMagnetId });
       if (error.code === '23505') {
-        return NextResponse.json(
-          { error: 'A funnel with this slug already exists' },
-          { status: 409 }
-        );
+        return ApiErrors.conflict('A funnel with this slug already exists');
       }
-      return NextResponse.json({ error: 'Failed to create funnel page' }, { status: 500 });
+      return ApiErrors.databaseError('Failed to create funnel page');
     }
 
     return NextResponse.json(
@@ -166,7 +158,7 @@ export async function POST(request: Request) {
       { status: 201 }
     );
   } catch (error) {
-    console.error('Create funnel error:', error);
-    return NextResponse.json({ error: 'Failed to create funnel page' }, { status: 500 });
+    logApiError('funnel/create', error);
+    return ApiErrors.internalError('Failed to create funnel page');
   }
 }

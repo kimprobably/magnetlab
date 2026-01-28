@@ -5,13 +5,14 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
+import { ApiErrors, logApiError } from '@/lib/api/errors';
 
 // GET - List all lead magnets for current user
 export async function GET(request: Request) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return ApiErrors.unauthorized();
     }
 
     const { searchParams } = new URL(request.url);
@@ -19,7 +20,6 @@ export async function GET(request: Request) {
     const limit = parseInt(searchParams.get('limit') || '50');
     const offset = parseInt(searchParams.get('offset') || '0');
 
-    // Use admin client to bypass RLS (we validate user via NextAuth)
     const supabase = createSupabaseAdminClient();
 
     let query = supabase
@@ -36,8 +36,8 @@ export async function GET(request: Request) {
     const { data, error, count } = await query;
 
     if (error) {
-      console.error('List error:', error);
-      return NextResponse.json({ error: 'Failed to fetch lead magnets' }, { status: 500 });
+      logApiError('lead-magnet/list', error, { userId: session.user.id });
+      return ApiErrors.databaseError('Failed to fetch lead magnets');
     }
 
     return NextResponse.json({
@@ -47,8 +47,8 @@ export async function GET(request: Request) {
       offset,
     });
   } catch (error) {
-    console.error('List lead magnets error:', error);
-    return NextResponse.json({ error: 'Failed to fetch lead magnets' }, { status: 500 });
+    logApiError('lead-magnet/list', error);
+    return ApiErrors.internalError('Failed to fetch lead magnets');
   }
 }
 
@@ -57,30 +57,27 @@ export async function POST(request: Request) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return ApiErrors.unauthorized();
     }
 
     const body = await request.json();
-    // Use admin client to bypass RLS (we validate user via NextAuth)
     const supabase = createSupabaseAdminClient();
 
-    // Check usage limits - DISABLED FOR TESTING
-    // try {
-    //   const { data: canCreate, error: rpcError } = await supabase.rpc('check_usage_limit', {
-    //     p_user_id: session.user.id,
-    //     p_limit_type: 'lead_magnets',
-    //   });
+    // Check usage limits
+    try {
+      const { data: canCreate, error: rpcError } = await supabase.rpc('check_usage_limit', {
+        p_user_id: session.user.id,
+        p_limit_type: 'lead_magnets',
+      });
 
-    //   if (!rpcError && canCreate === false) {
-    //     return NextResponse.json(
-    //       { error: 'Monthly lead magnet limit reached. Upgrade your plan for more.' },
-    //       { status: 403 }
-    //     );
-    //   }
-    // } catch {
-    //   // RPC doesn't exist, continue without limit check
-    //   console.log('Usage limit check skipped - RPC not available');
-    // }
+      if (rpcError) {
+        logApiError('lead-magnet/usage-check', rpcError, { userId: session.user.id });
+      } else if (canCreate === false) {
+        return ApiErrors.usageLimitExceeded('Monthly lead magnet limit reached. Upgrade your plan for more.');
+      }
+    } catch (err) {
+      logApiError('lead-magnet/usage-check', err, { userId: session.user.id, note: 'RPC unavailable' });
+    }
 
     // Create the lead magnet
     const { data, error } = await supabase
@@ -101,24 +98,26 @@ export async function POST(request: Request) {
       .single();
 
     if (error) {
-      console.error('Create error:', error);
-      return NextResponse.json({ error: `Failed to create lead magnet: ${error.message}` }, { status: 500 });
+      logApiError('lead-magnet/create', error, { userId: session.user.id });
+      return ApiErrors.databaseError('Failed to create lead magnet');
     }
 
     // Increment usage (gracefully handle if RPC doesn't exist)
     try {
-      await supabase.rpc('increment_usage', {
+      const { error: incrementError } = await supabase.rpc('increment_usage', {
         p_user_id: session.user.id,
         p_limit_type: 'lead_magnets',
       });
-    } catch {
-      // RPC doesn't exist, continue
-      console.log('Usage increment skipped - RPC not available');
+      if (incrementError) {
+        logApiError('lead-magnet/usage-increment', incrementError, { userId: session.user.id });
+      }
+    } catch (err) {
+      logApiError('lead-magnet/usage-increment', err, { userId: session.user.id, note: 'RPC unavailable' });
     }
 
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
-    console.error('Create lead magnet error:', error);
-    return NextResponse.json({ error: 'Failed to create lead magnet' }, { status: 500 });
+    logApiError('lead-magnet/create', error);
+    return ApiErrors.internalError('Failed to create lead magnet');
   }
 }

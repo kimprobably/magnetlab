@@ -4,13 +4,14 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { processContentExtraction } from '@/lib/ai/lead-magnet-generator';
+import { ApiErrors, logApiError } from '@/lib/api/errors';
 import type { LeadMagnetArchetype, LeadMagnetConcept } from '@/lib/types/lead-magnet';
 
 export async function POST(request: Request) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return ApiErrors.unauthorized();
     }
 
     const body = await request.json();
@@ -21,20 +22,14 @@ export async function POST(request: Request) {
     };
 
     if (!archetype || !concept || !answers) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      );
+      return ApiErrors.validationError('Missing required fields: archetype, concept, and answers');
     }
 
     const extractedContent = await processContentExtraction(archetype, concept, answers);
 
     return NextResponse.json(extractedContent);
   } catch (error) {
-    console.error('Generate content error:', error);
-    return NextResponse.json(
-      { error: 'Failed to generate content' },
-      { status: 500 }
-    );
+    logApiError('lead-magnet/generate', error);
+    return ApiErrors.aiError('Failed to generate content');
   }
 }

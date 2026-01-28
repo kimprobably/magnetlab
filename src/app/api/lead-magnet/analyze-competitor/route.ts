@@ -2,37 +2,29 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { analyzeCompetitorContent } from '@/lib/ai/lead-magnet-generator';
 import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
+import { ApiErrors, logApiError } from '@/lib/api/errors';
 import type { BusinessContext } from '@/lib/types/lead-magnet';
 
 export async function POST(request: Request) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return ApiErrors.unauthorized();
     }
 
     const body = await request.json();
     const { content } = body;
 
     if (!content || typeof content !== 'string') {
-      return NextResponse.json(
-        { error: 'Content is required and must be a string' },
-        { status: 400 }
-      );
+      return ApiErrors.validationError('Content is required and must be a string');
     }
 
     if (content.length < 50) {
-      return NextResponse.json(
-        { error: 'Content too short. Please provide at least 50 characters.' },
-        { status: 400 }
-      );
+      return ApiErrors.validationError('Content too short. Please provide at least 50 characters.');
     }
 
     if (content.length > 20000) {
-      return NextResponse.json(
-        { error: 'Content too long. Maximum 20,000 characters.' },
-        { status: 400 }
-      );
+      return ApiErrors.validationError('Content too long. Maximum 20,000 characters.');
     }
 
     // Optionally fetch user's brand kit for context
@@ -67,10 +59,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ analysis });
   } catch (error) {
-    console.error('Error analyzing competitor content:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to analyze content' },
-      { status: 500 }
-    );
+    logApiError('lead-magnet/analyze-competitor', error);
+    return ApiErrors.aiError('Failed to analyze content');
   }
 }
