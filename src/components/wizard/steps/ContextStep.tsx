@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Loader2, Sparkles, FileText, Lightbulb, History } from 'lucide-react';
-import type { BusinessContext, BusinessType, IdeationSources } from '@/lib/types/lead-magnet';
+import { Loader2, Sparkles, FileText, Lightbulb, History, Users, Eye, X, Check } from 'lucide-react';
+import type { BusinessContext, BusinessType, IdeationSources, CallTranscriptInsights, CompetitorAnalysis } from '@/lib/types/lead-magnet';
 import { BUSINESS_TYPE_LABELS } from '@/lib/types/lead-magnet';
 import { SmartImportTab } from './SmartImportTab';
-import { IdeationSourcesPanel } from './IdeationSourcesPanel';
 
 type TabValue = 'smart' | 'manual';
+type ModalType = 'transcript' | 'inspiration' | null;
 
 interface ContextStepProps {
   initialData: Partial<BusinessContext>;
@@ -48,6 +48,14 @@ export function ContextStep({ initialData, onSubmit, onCustomIdea, onUseSavedIde
   const [localSources, setLocalSources] = useState<IdeationSources>({});
   const sources = ideationSources || localSources;
   const handleSourcesChange = onIdeationSourcesChange || setLocalSources;
+
+  // Modal state for alternate ideation modes
+  const [activeModal, setActiveModal] = useState<ModalType>(null);
+  const [modalText, setModalText] = useState('');
+  const [modalLoading, setModalLoading] = useState(false);
+  const [modalError, setModalError] = useState<string | null>(null);
+  const [transcriptInsights, setTranscriptInsights] = useState<CallTranscriptInsights | null>(null);
+  const [competitorAnalysis, setCompetitorAnalysis] = useState<CompetitorAnalysis | null>(null);
 
   // Auto-switch to manual tab if initial data has content
   useEffect(() => {
@@ -90,6 +98,125 @@ export function ContextStep({ initialData, onSubmit, onCustomIdea, onUseSavedIde
     // Include sources if any have been analyzed
     const hasAnySources = sources.callTranscript?.insights || sources.competitorInspiration?.analysis;
     onSubmit(context, hasAnySources ? sources : undefined);
+  };
+
+  // Modal handlers for alternate ideation modes
+  const handleOpenModal = (type: ModalType) => {
+    setActiveModal(type);
+    setModalText('');
+    setModalError(null);
+    setTranscriptInsights(null);
+    setCompetitorAnalysis(null);
+  };
+
+  const handleCloseModal = () => {
+    setActiveModal(null);
+    setModalText('');
+    setModalError(null);
+  };
+
+  const handleAnalyzeTranscript = async () => {
+    if (!modalText.trim()) return;
+    setModalLoading(true);
+    setModalError(null);
+
+    try {
+      const response = await fetch('/api/lead-magnet/analyze-transcript', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transcript: modalText }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to analyze transcript');
+      }
+      setTranscriptInsights(data.insights);
+    } catch (error) {
+      setModalError(error instanceof Error ? error.message : 'Analysis failed');
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  const handleAnalyzeCompetitor = async () => {
+    if (!modalText.trim()) return;
+    setModalLoading(true);
+    setModalError(null);
+
+    try {
+      const response = await fetch('/api/lead-magnet/analyze-competitor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: modalText }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to analyze content');
+      }
+      setCompetitorAnalysis(data.analysis);
+    } catch (error) {
+      setModalError(error instanceof Error ? error.message : 'Analysis failed');
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  const handleGenerateFromTranscript = () => {
+    if (!transcriptInsights || !formData.businessDescription || !formData.businessType) return;
+
+    const context: BusinessContext = {
+      businessDescription: formData.businessDescription,
+      businessType: formData.businessType,
+      credibilityMarkers: formData.credibilityMarkers || [],
+      urgentPains: formData.urgentPains || [],
+      templates: formData.templates || [],
+      processes: formData.processes || [],
+      tools: formData.tools || [],
+      frequentQuestions: formData.frequentQuestions || [],
+      results: formData.results || [],
+      successExample: formData.successExample,
+    };
+
+    const newSources: IdeationSources = {
+      callTranscript: {
+        raw: modalText,
+        insights: transcriptInsights,
+      },
+    };
+
+    handleSourcesChange(newSources);
+    handleCloseModal();
+    onSubmit(context, newSources);
+  };
+
+  const handleGenerateFromInspiration = () => {
+    if (!competitorAnalysis || !formData.businessDescription || !formData.businessType) return;
+
+    const context: BusinessContext = {
+      businessDescription: formData.businessDescription,
+      businessType: formData.businessType,
+      credibilityMarkers: formData.credibilityMarkers || [],
+      urgentPains: formData.urgentPains || [],
+      templates: formData.templates || [],
+      processes: formData.processes || [],
+      tools: formData.tools || [],
+      frequentQuestions: formData.frequentQuestions || [],
+      results: formData.results || [],
+      successExample: formData.successExample,
+    };
+
+    const newSources: IdeationSources = {
+      competitorInspiration: {
+        raw: modalText,
+        analysis: competitorAnalysis,
+      },
+    };
+
+    handleSourcesChange(newSources);
+    handleCloseModal();
+    onSubmit(context, newSources);
   };
 
   const addToArray = (field: keyof Pick<BusinessContext, 'credibilityMarkers' | 'urgentPains' | 'results' | 'frequentQuestions'>, inputKey: keyof typeof currentInput) => {
@@ -343,12 +470,6 @@ export function ContextStep({ initialData, onSubmit, onCustomIdea, onUseSavedIde
           />
         </div>
 
-        {/* Ideation Sources Panel */}
-        <IdeationSourcesPanel
-          sources={sources}
-          onSourcesChange={handleSourcesChange}
-        />
-
         {/* Choice Buttons */}
         <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-4">
           <p className="text-sm font-medium text-center">How would you like to proceed?</p>
@@ -403,6 +524,37 @@ export function ContextStep({ initialData, onSubmit, onCustomIdea, onUseSavedIde
             {hasSavedIdeas ? 'Create fresh concepts from your context' : 'Uses your context to create concepts'}
           </p>
 
+          <div className="relative flex items-center justify-center">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-border" />
+            </div>
+            <span className="relative bg-muted/30 px-2 text-xs text-muted-foreground">or ideate from</span>
+          </div>
+
+          {/* Alternate Ideation Modes */}
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              disabled={loading || !formData.businessDescription}
+              onClick={() => handleOpenModal('transcript')}
+              className="flex flex-col items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 py-4 text-sm font-medium hover:bg-muted/50 hover:border-primary/50 disabled:opacity-50 transition-colors"
+            >
+              <Users className="h-5 w-5 text-blue-500" />
+              <span>Call Transcript</span>
+              <span className="text-xs text-muted-foreground font-normal">Extract real pain points</span>
+            </button>
+            <button
+              type="button"
+              disabled={loading || !formData.businessDescription}
+              onClick={() => handleOpenModal('inspiration')}
+              className="flex flex-col items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 py-4 text-sm font-medium hover:bg-muted/50 hover:border-primary/50 disabled:opacity-50 transition-colors"
+            >
+              <Eye className="h-5 w-5 text-purple-500" />
+              <span>Inspiration Post</span>
+              <span className="text-xs text-muted-foreground font-normal">Adapt what works</span>
+            </button>
+          </div>
+
           {onCustomIdea && (
             <>
               <div className="relative flex items-center justify-center">
@@ -440,6 +592,295 @@ export function ContextStep({ initialData, onSubmit, onCustomIdea, onUseSavedIde
           )}
         </div>
       </form>
+      )}
+
+      {/* Modal for Transcript Analysis */}
+      {activeModal === 'transcript' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-2xl rounded-xl bg-background border border-border shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-border p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-blue-500/10">
+                  <Users className="h-5 w-5 text-blue-500" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">Ideate from Call Transcript</h3>
+                  <p className="text-sm text-muted-foreground">Paste a sales or coaching call to extract real customer insights</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseModal}
+                className="p-2 rounded-lg hover:bg-muted transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              {!transcriptInsights ? (
+                <>
+                  <textarea
+                    value={modalText}
+                    onChange={(e) => setModalText(e.target.value)}
+                    placeholder="Paste your sales call, coaching session, or customer interview transcript here...
+
+We'll extract:
+• Pain points with direct quotes
+• Frequently asked questions
+• Desired transformation outcomes
+• Customer language patterns"
+                    rows={10}
+                    className="w-full rounded-lg border border-border bg-muted/50 dark:bg-muted/20 px-4 py-3 text-sm placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors resize-none"
+                  />
+                  {modalError && (
+                    <p className="text-sm text-destructive">{modalError}</p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleAnalyzeTranscript}
+                    disabled={modalLoading || !modalText.trim()}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-500 text-white px-6 py-3 text-sm font-medium hover:bg-blue-600 disabled:opacity-50 transition-colors"
+                  >
+                    {modalLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Analyzing transcript...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4" />
+                        Analyze Transcript
+                      </>
+                    )}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="rounded-lg border border-green-500/30 bg-green-500/5 p-4 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Check className="h-5 w-5 text-green-600" />
+                      <span className="font-medium text-green-600">Analysis Complete</span>
+                    </div>
+
+                    <div className="space-y-3 text-sm">
+                      {transcriptInsights.painPoints.length > 0 && (
+                        <div>
+                          <p className="font-medium mb-1">Pain Points ({transcriptInsights.painPoints.length})</p>
+                          <ul className="space-y-1 text-muted-foreground">
+                            {transcriptInsights.painPoints.slice(0, 3).map((p, i) => (
+                              <li key={i} className="flex items-start gap-2">
+                                <span className="text-muted-foreground/50">•</span>
+                                <span>&ldquo;{p.quote}&rdquo;</span>
+                              </li>
+                            ))}
+                            {transcriptInsights.painPoints.length > 3 && (
+                              <li className="text-muted-foreground/70">+{transcriptInsights.painPoints.length - 3} more</li>
+                            )}
+                          </ul>
+                        </div>
+                      )}
+
+                      {transcriptInsights.frequentQuestions.length > 0 && (
+                        <div>
+                          <p className="font-medium mb-1">Questions ({transcriptInsights.frequentQuestions.length})</p>
+                          <ul className="space-y-1 text-muted-foreground">
+                            {transcriptInsights.frequentQuestions.slice(0, 2).map((q, i) => (
+                              <li key={i}>• {q.question}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {transcriptInsights.languagePatterns.length > 0 && (
+                        <div>
+                          <p className="font-medium mb-1">Language Patterns</p>
+                          <div className="flex flex-wrap gap-1">
+                            {transcriptInsights.languagePatterns.slice(0, 5).map((phrase, i) => (
+                              <span key={i} className="px-2 py-0.5 bg-muted rounded text-xs">
+                                {phrase}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleGenerateFromTranscript}
+                    disabled={loading}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary text-primary-foreground px-6 py-3 text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Generating ideas...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4" />
+                        Generate Ideas from These Insights
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTranscriptInsights(null);
+                      setModalText('');
+                    }}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-border px-6 py-2 text-sm font-medium hover:bg-muted/50 transition-colors"
+                  >
+                    Start Over
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal for Inspiration Analysis */}
+      {activeModal === 'inspiration' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-2xl rounded-xl bg-background border border-border shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-border p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-purple-500/10">
+                  <Eye className="h-5 w-5 text-purple-500" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">Ideate from Inspiration</h3>
+                  <p className="text-sm text-muted-foreground">Paste a successful lead magnet to analyze and adapt</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseModal}
+                className="p-2 rounded-lg hover:bg-muted transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              {!competitorAnalysis ? (
+                <>
+                  <textarea
+                    value={modalText}
+                    onChange={(e) => setModalText(e.target.value)}
+                    placeholder="Paste a competitor's post, lead magnet description, or promotional content here...
+
+We'll analyze:
+• What type of lead magnet it is
+• The pain point it addresses
+• Why it's effective
+• How to adapt it for your business"
+                    rows={10}
+                    className="w-full rounded-lg border border-border bg-muted/50 dark:bg-muted/20 px-4 py-3 text-sm placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors resize-none"
+                  />
+                  {modalError && (
+                    <p className="text-sm text-destructive">{modalError}</p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleAnalyzeCompetitor}
+                    disabled={modalLoading || !modalText.trim()}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg bg-purple-500 text-white px-6 py-3 text-sm font-medium hover:bg-purple-600 disabled:opacity-50 transition-colors"
+                  >
+                    {modalLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Analyzing content...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4" />
+                        Analyze Content
+                      </>
+                    )}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="rounded-lg border border-green-500/30 bg-green-500/5 p-4 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Check className="h-5 w-5 text-green-600" />
+                      <span className="font-medium text-green-600">Analysis Complete</span>
+                    </div>
+
+                    <div className="space-y-3 text-sm">
+                      <div>
+                        <p className="font-medium mb-1">Detected Format</p>
+                        <p className="text-muted-foreground">{competitorAnalysis.detectedArchetype || competitorAnalysis.format}</p>
+                      </div>
+
+                      <div>
+                        <p className="font-medium mb-1">Pain Point Addressed</p>
+                        <p className="text-muted-foreground">{competitorAnalysis.painPointAddressed}</p>
+                      </div>
+
+                      {competitorAnalysis.effectivenessFactors.length > 0 && (
+                        <div>
+                          <p className="font-medium mb-1">Why It Works</p>
+                          <ul className="space-y-1 text-muted-foreground">
+                            {competitorAnalysis.effectivenessFactors.slice(0, 3).map((factor, i) => (
+                              <li key={i}>• {factor}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {competitorAnalysis.adaptationSuggestions.length > 0 && (
+                        <div>
+                          <p className="font-medium mb-1">Adaptation Ideas</p>
+                          <ul className="space-y-1 text-muted-foreground">
+                            {competitorAnalysis.adaptationSuggestions.slice(0, 2).map((suggestion, i) => (
+                              <li key={i}>• {suggestion}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleGenerateFromInspiration}
+                    disabled={loading}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary text-primary-foreground px-6 py-3 text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Generating ideas...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4" />
+                        Generate Adapted Ideas
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCompetitorAnalysis(null);
+                      setModalText('');
+                    }}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-border px-6 py-2 text-sm font-medium hover:bg-muted/50 transition-colors"
+                  >
+                    Start Over
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
