@@ -261,27 +261,23 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'Failed to update lead', code: 'DATABASE_ERROR' }, { status: 500 });
     }
 
-    // Get funnel and lead magnet for webhook
+    // Get funnel with lead magnet title for webhook (single query with join)
     const { data: funnel } = await supabase
       .from('funnel_pages')
-      .select('slug, lead_magnet_id')
+      .select('slug, lead_magnets(title)')
       .eq('id', lead.funnel_page_id)
       .single();
 
-    const { data: leadMagnet } = await supabase
-      .from('lead_magnets')
-      .select('title')
-      .eq('id', funnel?.lead_magnet_id)
-      .single();
-
     // Deliver webhook with updated info
+    const leadMagnets = funnel?.lead_magnets as { title: string } | { title: string }[] | null;
+    const leadMagnetTitle = Array.isArray(leadMagnets) ? leadMagnets[0]?.title || '' : leadMagnets?.title || '';
     deliverWebhook(lead.user_id, 'lead.created', {
       leadId: lead.id,
       email: lead.email,
       name: lead.name,
       isQualified,
       qualificationAnswers: answers,
-      leadMagnetTitle: leadMagnet?.title || '',
+      leadMagnetTitle,
       funnelPageSlug: funnel?.slug || '',
       utmSource: updatedLead.utm_source,
       utmMedium: updatedLead.utm_medium,
