@@ -78,8 +78,8 @@ export function QuestionsManager({
 
       const { question: updated } = await response.json();
       setQuestions(questions.map(q => q.id === questionId ? updated : q));
-    } catch (err) {
-      console.error('Update question error:', err);
+    } catch {
+      // Error handled silently - UI remains responsive
     }
   };
 
@@ -96,8 +96,8 @@ export function QuestionsManager({
       }
 
       setQuestions(questions.filter(q => q.id !== questionId));
-    } catch (err) {
-      console.error('Delete question error:', err);
+    } catch {
+      // Error handled silently - UI remains responsive
     }
   };
 
@@ -156,12 +156,10 @@ export function QuestionsManager({
       if (!response.ok) {
         // Revert on error
         setQuestions(questions);
-        console.error('Failed to reorder questions');
       }
-    } catch (err) {
+    } catch {
       // Revert on error
       setQuestions(questions);
-      console.error('Reorder error:', err);
     }
   };
 

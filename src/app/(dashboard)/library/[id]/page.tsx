@@ -24,31 +24,33 @@ export default async function LeadMagnetDetailPage({ params }: PageProps) {
   const { id } = await params;
   const supabase = createSupabaseAdminClient();
 
-  // Fetch lead magnet
-  const { data: leadMagnet, error } = await supabase
-    .from('lead_magnets')
-    .select('*')
-    .eq('id', id)
-    .eq('user_id', session.user.id)
-    .single();
+  // Parallelize all queries for better performance
+  const [leadMagnetResult, funnelResult, userResult] = await Promise.all([
+    supabase
+      .from('lead_magnets')
+      .select('*')
+      .eq('id', id)
+      .eq('user_id', session.user.id)
+      .single(),
+    supabase
+      .from('funnel_pages')
+      .select('id, slug, is_published')
+      .eq('lead_magnet_id', id)
+      .single(),
+    supabase
+      .from('users')
+      .select('username')
+      .eq('id', session.user.id)
+      .single(),
+  ]);
+
+  const { data: leadMagnet, error } = leadMagnetResult;
+  const { data: funnel } = funnelResult;
+  const { data: userData } = userResult;
 
   if (error || !leadMagnet) {
     notFound();
   }
-
-  // Check if funnel exists
-  const { data: funnel } = await supabase
-    .from('funnel_pages')
-    .select('id, slug, is_published')
-    .eq('lead_magnet_id', id)
-    .single();
-
-  // Get username for funnel URL
-  const { data: userData } = await supabase
-    .from('users')
-    .select('username')
-    .eq('id', session.user.id)
-    .single();
 
   return (
     <div className="container mx-auto max-w-4xl px-4 py-8">

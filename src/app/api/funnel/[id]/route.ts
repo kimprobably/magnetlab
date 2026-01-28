@@ -133,26 +133,14 @@ export async function DELETE(request: Request, { params }: RouteParams) {
       return ApiErrors.notFound('Funnel page');
     }
 
-    // Cascade delete related records
-    // Delete qualification questions
-    await supabase
-      .from('qualification_questions')
-      .delete()
-      .eq('funnel_page_id', id);
+    // Cascade delete related records in parallel (no FK dependencies between them)
+    await Promise.all([
+      supabase.from('qualification_questions').delete().eq('funnel_page_id', id),
+      supabase.from('funnel_leads').delete().eq('funnel_page_id', id),
+      supabase.from('page_views').delete().eq('funnel_page_id', id),
+    ]);
 
-    // Delete funnel leads
-    await supabase
-      .from('funnel_leads')
-      .delete()
-      .eq('funnel_page_id', id);
-
-    // Delete page views
-    await supabase
-      .from('page_views')
-      .delete()
-      .eq('funnel_page_id', id);
-
-    // Finally delete the funnel page
+    // Delete the funnel page (after child records are cleared)
     const { error } = await supabase
       .from('funnel_pages')
       .delete()

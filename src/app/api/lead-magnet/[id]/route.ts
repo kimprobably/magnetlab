@@ -108,29 +108,15 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     if (funnels && funnels.length > 0) {
       const funnelIds = funnels.map(f => f.id);
 
-      // Delete qualification questions
-      await supabase
-        .from('qualification_questions')
-        .delete()
-        .in('funnel_page_id', funnelIds);
+      // Delete questions, leads, and page views in parallel (no FK dependencies between them)
+      await Promise.all([
+        supabase.from('qualification_questions').delete().in('funnel_page_id', funnelIds),
+        supabase.from('funnel_leads').delete().in('funnel_page_id', funnelIds),
+        supabase.from('page_views').delete().in('funnel_page_id', funnelIds),
+      ]);
 
-      // Delete funnel leads
-      await supabase
-        .from('funnel_leads')
-        .delete()
-        .in('funnel_page_id', funnelIds);
-
-      // Delete page views
-      await supabase
-        .from('page_views')
-        .delete()
-        .in('funnel_page_id', funnelIds);
-
-      // Delete funnel pages
-      await supabase
-        .from('funnel_pages')
-        .delete()
-        .eq('lead_magnet_id', id);
+      // Delete funnel pages (after child records are cleared)
+      await supabase.from('funnel_pages').delete().eq('lead_magnet_id', id);
     }
 
     // Finally delete the lead magnet

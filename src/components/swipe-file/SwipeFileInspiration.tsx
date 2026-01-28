@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { ChevronDown, ChevronUp, Lightbulb, ExternalLink, ThumbsUp, Users } from 'lucide-react';
 import Link from 'next/link';
 
@@ -36,14 +36,9 @@ export function SwipeFileInspiration({
   const [posts, setPosts] = useState<SwipePost[]>([]);
   const [leadMagnets, setLeadMagnets] = useState<SwipeLeadMagnet[]>([]);
   const [loading, setLoading] = useState(false);
+  const hasFetched = useRef(false);
 
-  useEffect(() => {
-    if (expanded && posts.length === 0 && leadMagnets.length === 0) {
-      fetchData();
-    }
-  }, [expanded]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -63,12 +58,19 @@ export function SwipeFileInspiration({
         const lmData = await lmRes.json();
         setLeadMagnets(lmData.leadMagnets || []);
       }
-    } catch (error) {
-      console.error('Error fetching inspiration:', error);
+    } catch {
+      // Error handled silently - data will be empty
     } finally {
       setLoading(false);
     }
-  };
+  }, [type, niche, limit]);
+
+  useEffect(() => {
+    if (expanded && !hasFetched.current) {
+      hasFetched.current = true;
+      fetchData();
+    }
+  }, [expanded, fetchData]);
 
   const hasContent = posts.length > 0 || leadMagnets.length > 0;
 

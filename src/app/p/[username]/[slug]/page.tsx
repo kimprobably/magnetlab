@@ -3,6 +3,9 @@ import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
 import { OptinPage } from '@/components/funnel/public';
 import type { Metadata } from 'next';
 
+// Revalidate published pages every 5 minutes for ISR caching
+export const revalidate = 300;
+
 interface PageProps {
   params: Promise<{ username: string; slug: string }>;
 }

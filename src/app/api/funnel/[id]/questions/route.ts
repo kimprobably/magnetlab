@@ -158,7 +158,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       return ApiErrors.notFound('Funnel page');
     }
 
-    // Update each question's order
+    // Update each question's order in parallel
     const updates = body.questionIds.map((questionId: string, index: number) =>
       supabase
         .from('qualification_questions')
@@ -167,23 +167,17 @@ export async function PATCH(request: Request, { params }: RouteParams) {
         .eq('funnel_page_id', id)
     );
 
-    await Promise.all(updates);
+    const results = await Promise.all(updates);
 
-    // Fetch updated questions
-    const { data, error } = await supabase
-      .from('qualification_questions')
-      .select('*')
-      .eq('funnel_page_id', id)
-      .order('question_order', { ascending: true });
-
-    if (error) {
-      logApiError('funnel/questions/reorder', error, { funnelId: id });
+    // Check if any updates failed
+    const failedUpdate = results.find(r => r.error);
+    if (failedUpdate?.error) {
+      logApiError('funnel/questions/reorder', failedUpdate.error, { funnelId: id });
       return ApiErrors.databaseError('Failed to reorder questions');
     }
 
-    const questions = (data as QualificationQuestionRow[]).map(qualificationQuestionFromRow);
-
-    return NextResponse.json({ questions });
+    // Return success without refetching - client already has correct order
+    return NextResponse.json({ success: true });
   } catch (error) {
     logApiError('funnel/questions/reorder', error);
     return ApiErrors.internalError('Failed to reorder questions');

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   FileText,
   Magnet,
@@ -97,11 +97,7 @@ export function SwipeFileContent() {
   // Submission modal
   const [showSubmitModal, setShowSubmitModal] = useState(false);
 
-  useEffect(() => {
-    fetchData();
-  }, [activeTab, niche, postType, format, featuredOnly]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       if (activeTab === 'posts') {
@@ -123,12 +119,16 @@ export function SwipeFileContent() {
         const data = await response.json();
         setLeadMagnets(data.leadMagnets || []);
       }
-    } catch (error) {
-      console.error('Error fetching swipe file:', error);
+    } catch {
+      // Error handled silently - data will be empty
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeTab, niche, postType, format, featuredOnly]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const handleCopy = async (text: string, id: string) => {
     await navigator.clipboard.writeText(text);
