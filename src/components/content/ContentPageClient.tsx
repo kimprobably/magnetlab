@@ -11,7 +11,10 @@ import { ExtractedContentRenderer } from './ExtractedContentRenderer';
 import { ContentFooter } from './ContentFooter';
 import { VideoEmbed } from '@/components/funnel/public/VideoEmbed';
 import { BookCallDrawer } from './BookCallDrawer';
+import { getThemeVars } from '@/lib/utils/theme-vars';
+import { SectionRenderer } from '@/components/ds';
 import type { PolishedContent, ExtractedContent, LeadMagnetConcept } from '@/lib/types/lead-magnet';
+import type { FunnelPageSection } from '@/lib/types/funnel';
 
 interface ContentPageClientProps {
   title: string;
@@ -30,6 +33,7 @@ interface ContentPageClientProps {
   leadId?: string | null;
   isQualified?: boolean | null;
   hasQuestions?: boolean;
+  sections?: FunnelPageSection[];
 }
 
 export function ContentPageClient({
@@ -47,6 +51,7 @@ export function ContentPageClient({
   leadId,
   isQualified = null,
   hasQuestions = false,
+  sections = [],
 }: ContentPageClientProps) {
   const [isDark, setIsDark] = useState(initialTheme === 'dark');
   const [isEditing, setIsEditing] = useState(false);
@@ -55,9 +60,15 @@ export function ContentPageClient({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
+  const theme = isDark ? 'dark' : 'light';
+  const themeVars = getThemeVars(theme as 'dark' | 'light', primaryColor);
   const bgColor = isDark ? '#09090B' : '#FAFAFA';
   const borderColor = isDark ? '#27272A' : '#E4E4E7';
   const textColor = isDark ? '#FAFAFA' : '#09090B';
+
+  // Split sections into above-content and below-content slots
+  const aboveSections = sections.filter(s => s.sortOrder < 50);
+  const belowSections = sections.filter(s => s.sortOrder >= 50);
 
   // The content to display (edited or original)
   const displayContent = isEditing ? editContent : polishedContent;
@@ -112,7 +123,7 @@ export function ContentPageClient({
   const showStickyCta = !!calendlyUrl && !!leadId && !!funnelPageId && !isEditing;
 
   return (
-    <div style={{ background: bgColor, minHeight: '100vh', paddingBottom: showStickyCta ? '5rem' : undefined }}>
+    <div style={{ background: bgColor, minHeight: '100vh', paddingBottom: showStickyCta ? '5rem' : undefined, ...themeVars }}>
       <ContentHeader
         logoUrl={logoUrl}
         isDark={isDark}
@@ -144,6 +155,13 @@ export function ContentPageClient({
         {vslUrl && (
           <div style={{ maxWidth: '700px', marginBottom: '2.5rem' }}>
             <VideoEmbed url={vslUrl} />
+          </div>
+        )}
+
+        {/* Above-content sections */}
+        {aboveSections.length > 0 && (
+          <div style={{ maxWidth: '700px', marginBottom: '2.5rem' }} className="space-y-6">
+            {aboveSections.map(s => <SectionRenderer key={s.id} section={s} />)}
           </div>
         )}
 
@@ -182,6 +200,13 @@ export function ContentPageClient({
           )}
         </div>
       </div>
+
+      {/* Below-content sections */}
+      {belowSections.length > 0 && (
+        <div style={{ maxWidth: '700px', margin: '0 auto', padding: '0 1.5rem' }} className="space-y-6">
+          {belowSections.map(s => <SectionRenderer key={s.id} section={s} />)}
+        </div>
+      )}
 
       <ContentFooter isDark={isDark} />
 

@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
 import { OptinPage } from '@/components/funnel/public';
+import { funnelPageSectionFromRow, type FunnelPageSectionRow } from '@/lib/types/funnel';
 import type { Metadata } from 'next';
 
 // Revalidate published pages every 5 minutes for ISR caching
@@ -88,6 +89,17 @@ export default async function PublicOptinPage({ params }: PageProps) {
     notFound();
   }
 
+  // Fetch page sections for optin
+  const { data: sectionRows } = await supabase
+    .from('funnel_page_sections')
+    .select('*')
+    .eq('funnel_page_id', funnel.id)
+    .eq('page_location', 'optin')
+    .eq('is_visible', true)
+    .order('sort_order', { ascending: true });
+
+  const sections = (sectionRows as FunnelPageSectionRow[] || []).map(funnelPageSectionFromRow);
+
   return (
     <OptinPage
       funnelId={funnel.id}
@@ -101,6 +113,7 @@ export default async function PublicOptinPage({ params }: PageProps) {
       primaryColor={funnel.primary_color || '#8b5cf6'}
       backgroundStyle={(funnel.background_style as 'solid' | 'gradient' | 'pattern') || 'solid'}
       logoUrl={funnel.logo_url}
+      sections={sections}
     />
   );
 }

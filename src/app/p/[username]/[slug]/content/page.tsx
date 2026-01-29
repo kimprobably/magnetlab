@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
 import { ContentPageClient } from '@/components/content/ContentPageClient';
+import { funnelPageSectionFromRow, type FunnelPageSectionRow } from '@/lib/types/funnel';
 import type { Metadata } from 'next';
 import type { PolishedContent, ExtractedContent, LeadMagnetConcept } from '@/lib/types/lead-magnet';
 
@@ -164,6 +165,17 @@ export default async function PublicContentPage({ params, searchParams }: PagePr
     hasQuestions = (count ?? 0) > 0;
   }
 
+  // Fetch page sections for content
+  const { data: sectionRows } = await supabase
+    .from('funnel_page_sections')
+    .select('*')
+    .eq('funnel_page_id', funnel.id)
+    .eq('page_location', 'content')
+    .eq('is_visible', true)
+    .order('sort_order', { ascending: true });
+
+  const sections = (sectionRows as FunnelPageSectionRow[] || []).map(funnelPageSectionFromRow);
+
   // Track page view (fire-and-forget, not for owners)
   if (!isOwner) {
     supabase
@@ -190,6 +202,7 @@ export default async function PublicContentPage({ params, searchParams }: PagePr
       leadId={leadId || null}
       isQualified={isQualified}
       hasQuestions={hasQuestions}
+      sections={sections}
     />
   );
 }

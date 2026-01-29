@@ -4,6 +4,9 @@ import { useState, useEffect } from 'react';
 import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { VideoEmbed } from './VideoEmbed';
 import { CalendlyEmbed } from './CalendlyEmbed';
+import { getThemeVars } from '@/lib/utils/theme-vars';
+import { CTAButton, SectionRenderer } from '@/components/ds';
+import type { FunnelPageSection } from '@/lib/types/funnel';
 
 type AnswerType = 'yes_no' | 'text' | 'textarea' | 'multiple_choice';
 
@@ -32,6 +35,7 @@ interface ThankyouPageProps {
   logoUrl?: string | null;
   contentPageUrl?: string | null;
   leadMagnetTitle?: string | null;
+  sections?: FunnelPageSection[];
 }
 
 export function ThankyouPage({
@@ -49,6 +53,7 @@ export function ThankyouPage({
   logoUrl,
   contentPageUrl,
   leadMagnetTitle,
+  sections = [],
 }: ThankyouPageProps) {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -58,29 +63,26 @@ export function ThankyouPage({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Theme-based colors
+  const themeVars = getThemeVars(theme, primaryColor);
   const isDark = theme === 'dark';
-  const bgColor = isDark ? '#09090B' : '#FAFAFA';
-  const textColor = isDark ? '#FAFAFA' : '#09090B';
-  const mutedColor = isDark ? '#A1A1AA' : '#71717A';
-  const borderColor = isDark ? '#27272A' : '#E4E4E7';
-  const cardBg = isDark ? '#18181B' : '#FFFFFF';
-  const placeholderColor = isDark ? '#71717A' : '#A1A1AA';
 
   // Background style
-  const getBackgroundStyle = () => {
+  const getBackgroundStyle = (): string => {
+    const bgColor = isDark ? '#09090B' : '#FAFAFA';
     if (backgroundStyle === 'gradient') {
       return isDark
         ? `linear-gradient(135deg, ${bgColor} 0%, #18181B 50%, ${bgColor} 100%)`
         : `linear-gradient(135deg, ${bgColor} 0%, #FFFFFF 50%, ${bgColor} 100%)`;
     }
     if (backgroundStyle === 'pattern') {
-      return isDark
-        ? `radial-gradient(circle at 50% 50%, ${primaryColor}15 0%, transparent 50%), ${bgColor}`
-        : `radial-gradient(circle at 50% 50%, ${primaryColor}15 0%, transparent 50%), ${bgColor}`;
+      return `radial-gradient(circle at 50% 50%, ${primaryColor}15 0%, transparent 50%), ${bgColor}`;
     }
     return bgColor;
   };
+
+  // Split sections into above-video and below-qualification slots
+  const aboveSections = sections.filter(s => s.sortOrder < 50);
+  const belowSections = sections.filter(s => s.sortOrder >= 50);
 
   const currentQuestion = questions[currentQuestionIndex];
   const hasQuestions = questions.length > 0;
@@ -166,7 +168,7 @@ export function ThankyouPage({
   return (
     <div
       className="min-h-screen flex flex-col items-center px-4 py-12"
-      style={{ background: getBackgroundStyle() }}
+      style={{ background: getBackgroundStyle(), ...themeVars }}
     >
       <div className="w-full max-w-2xl space-y-8">
         {/* Header */}
@@ -182,20 +184,20 @@ export function ThankyouPage({
 
           <div
             className="inline-flex items-center justify-center w-16 h-16 rounded-full mb-4"
-            style={{ background: cardBg }}
+            style={{ background: 'var(--ds-card)' }}
           >
             <CheckCircle2 className="w-8 h-8 text-green-500" />
           </div>
 
           <h1
             className="text-2xl md:text-3xl font-semibold"
-            style={{ color: textColor }}
+            style={{ color: 'var(--ds-text)' }}
           >
             {headline}
           </h1>
 
           {subline && (
-            <p style={{ color: mutedColor }}>
+            <p style={{ color: 'var(--ds-muted)' }}>
               {subline}
             </p>
           )}
@@ -204,26 +206,18 @@ export function ThankyouPage({
         {/* Content page link */}
         {contentPageUrl && (
           <div className="text-center">
-            <a
+            <CTAButton
+              text={`Access Your ${leadMagnetTitle || 'Content'}`}
+              icon="arrow"
               href={leadId ? `${contentPageUrl}?leadId=${leadId}` : contentPageUrl}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                padding: '0.75rem 1.5rem',
-                borderRadius: '0.5rem',
-                background: primaryColor,
-                color: '#FFFFFF',
-                fontWeight: 500,
-                fontSize: '1rem',
-                textDecoration: 'none',
-                transition: 'opacity 0.15s',
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.9')}
-              onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
-            >
-              Access Your {leadMagnetTitle || 'Content'}
-            </a>
+            />
+          </div>
+        )}
+
+        {/* Above-video sections */}
+        {aboveSections.length > 0 && (
+          <div className="space-y-6">
+            {aboveSections.map(s => <SectionRenderer key={s.id} section={s} />)}
           </div>
         )}
 
@@ -236,10 +230,10 @@ export function ThankyouPage({
         {hasQuestions && !qualificationComplete && (
           <div
             className="rounded-xl p-6 space-y-6"
-            style={{ background: cardBg, border: `1px solid ${borderColor}` }}
+            style={{ background: 'var(--ds-card)', border: '1px solid var(--ds-border)' }}
           >
             <div className="flex items-center justify-between">
-              <p className="text-sm" style={{ color: placeholderColor }}>
+              <p className="text-sm" style={{ color: 'var(--ds-placeholder)' }}>
                 Question {currentQuestionIndex + 1} of {questions.length}
               </p>
               <div className="flex gap-1">
@@ -248,7 +242,7 @@ export function ThankyouPage({
                     key={i}
                     className="w-2 h-2 rounded-full"
                     style={{
-                      background: i <= currentQuestionIndex ? primaryColor : borderColor
+                      background: i <= currentQuestionIndex ? 'var(--ds-primary)' : 'var(--ds-border)'
                     }}
                   />
                 ))}
@@ -263,11 +257,11 @@ export function ThankyouPage({
 
             {submitting ? (
               <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin" style={{ color: primaryColor }} />
+                <Loader2 className="h-6 w-6 animate-spin" style={{ color: 'var(--ds-primary)' }} />
               </div>
             ) : (
               <>
-                <p className="text-lg font-medium" style={{ color: textColor }}>
+                <p className="text-lg font-medium" style={{ color: 'var(--ds-text)' }}>
                   {currentQuestion?.questionText}
                 </p>
 
@@ -277,14 +271,14 @@ export function ThankyouPage({
                     <button
                       onClick={() => handleYesNoAnswer('yes')}
                       className="flex-1 rounded-lg px-4 py-3 text-sm font-medium transition-colors hover:border-green-500"
-                      style={{ background: cardBg, border: `1px solid ${borderColor}`, color: textColor }}
+                      style={{ background: 'var(--ds-card)', border: '1px solid var(--ds-border)', color: 'var(--ds-text)' }}
                     >
                       Yes
                     </button>
                     <button
                       onClick={() => handleYesNoAnswer('no')}
                       className="flex-1 rounded-lg px-4 py-3 text-sm font-medium transition-colors hover:border-red-400"
-                      style={{ background: cardBg, border: `1px solid ${borderColor}`, color: textColor }}
+                      style={{ background: 'var(--ds-card)', border: '1px solid var(--ds-border)', color: 'var(--ds-text)' }}
                     >
                       No
                     </button>
@@ -301,7 +295,7 @@ export function ThankyouPage({
                       onKeyDown={(e) => e.key === 'Enter' && handleTextSubmit()}
                       placeholder={currentQuestion.placeholder || 'Type your answer...'}
                       className="w-full rounded-lg px-4 py-3 text-sm outline-none transition-colors"
-                      style={{ background: cardBg, border: `1px solid ${borderColor}`, color: textColor }}
+                      style={{ background: 'var(--ds-card)', border: '1px solid var(--ds-border)', color: 'var(--ds-text)' }}
                       autoFocus
                     />
                     <div className="flex items-center justify-between">
@@ -309,15 +303,15 @@ export function ThankyouPage({
                         <button
                           onClick={handleSkip}
                           className="text-sm transition-colors"
-                          style={{ color: placeholderColor }}
+                          style={{ color: 'var(--ds-placeholder)' }}
                         >
                           Skip
                         </button>
                       )}
                       <button
                         onClick={handleTextSubmit}
-                        className="ml-auto rounded-lg px-6 py-2 text-sm font-medium transition-opacity hover:opacity-90"
-                        style={{ background: primaryColor, color: '#FFFFFF' }}
+                        className="ml-auto rounded-lg px-6 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
+                        style={{ background: 'var(--ds-primary)' }}
                       >
                         Next
                       </button>
@@ -334,7 +328,7 @@ export function ThankyouPage({
                       placeholder={currentQuestion.placeholder || 'Type your answer...'}
                       rows={4}
                       className="w-full rounded-lg px-4 py-3 text-sm outline-none transition-colors resize-none"
-                      style={{ background: cardBg, border: `1px solid ${borderColor}`, color: textColor }}
+                      style={{ background: 'var(--ds-card)', border: '1px solid var(--ds-border)', color: 'var(--ds-text)' }}
                       autoFocus
                     />
                     <div className="flex items-center justify-between">
@@ -342,15 +336,15 @@ export function ThankyouPage({
                         <button
                           onClick={handleSkip}
                           className="text-sm transition-colors"
-                          style={{ color: placeholderColor }}
+                          style={{ color: 'var(--ds-placeholder)' }}
                         >
                           Skip
                         </button>
                       )}
                       <button
                         onClick={handleTextSubmit}
-                        className="ml-auto rounded-lg px-6 py-2 text-sm font-medium transition-opacity hover:opacity-90"
-                        style={{ background: primaryColor, color: '#FFFFFF' }}
+                        className="ml-auto rounded-lg px-6 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
+                        style={{ background: 'var(--ds-primary)' }}
                       >
                         Next
                       </button>
@@ -367,9 +361,9 @@ export function ThankyouPage({
                           key={option}
                           onClick={() => handleMultipleChoiceSelect(option)}
                           className="w-full text-left rounded-lg px-4 py-3 text-sm font-medium transition-colors"
-                          style={{ background: cardBg, border: `1px solid ${borderColor}`, color: textColor }}
+                          style={{ background: 'var(--ds-card)', border: '1px solid var(--ds-border)', color: 'var(--ds-text)' }}
                           onMouseEnter={(e) => (e.currentTarget.style.borderColor = primaryColor)}
-                          onMouseLeave={(e) => (e.currentTarget.style.borderColor = borderColor)}
+                          onMouseLeave={(e) => (e.currentTarget.style.borderColor = '')}
                         >
                           {option}
                         </button>
@@ -379,7 +373,7 @@ export function ThankyouPage({
                       <button
                         onClick={handleSkip}
                         className="text-sm transition-colors"
-                        style={{ color: placeholderColor }}
+                        style={{ color: 'var(--ds-placeholder)' }}
                       >
                         Skip
                       </button>
@@ -393,14 +387,14 @@ export function ThankyouPage({
                     <button
                       onClick={() => handleYesNoAnswer('yes')}
                       className="flex-1 rounded-lg px-4 py-3 text-sm font-medium transition-colors hover:border-green-500"
-                      style={{ background: cardBg, border: `1px solid ${borderColor}`, color: textColor }}
+                      style={{ background: 'var(--ds-card)', border: '1px solid var(--ds-border)', color: 'var(--ds-text)' }}
                     >
                       Yes
                     </button>
                     <button
                       onClick={() => handleYesNoAnswer('no')}
                       className="flex-1 rounded-lg px-4 py-3 text-sm font-medium transition-colors hover:border-red-400"
-                      style={{ background: cardBg, border: `1px solid ${borderColor}`, color: textColor }}
+                      style={{ background: 'var(--ds-card)', border: '1px solid var(--ds-border)', color: 'var(--ds-text)' }}
                     >
                       No
                     </button>
@@ -431,12 +425,19 @@ export function ThankyouPage({
           </div>
         )}
 
+        {/* Below-video sections */}
+        {belowSections.length > 0 && (
+          <div className="space-y-6">
+            {belowSections.map(s => <SectionRenderer key={s.id} section={s} />)}
+          </div>
+        )}
+
         {/* Calendly (show only for qualified leads) */}
         {qualificationComplete && isQualified && calendlyUrl && (
           <div className="space-y-4">
             <h3
               className="text-lg font-semibold text-center"
-              style={{ color: textColor }}
+              style={{ color: 'var(--ds-text)' }}
             >
               Book Your Call
             </h3>
@@ -452,7 +453,7 @@ export function ThankyouPage({
           target="_blank"
           rel="noopener noreferrer"
           className="text-xs transition-colors hover:opacity-80"
-          style={{ color: placeholderColor }}
+          style={{ color: 'var(--ds-placeholder)' }}
         >
           Powered by MagnetLab
         </a>

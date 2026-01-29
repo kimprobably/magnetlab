@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
 import { ThankyouPage } from '@/components/funnel/public';
+import { funnelPageSectionFromRow, type FunnelPageSectionRow } from '@/lib/types/funnel';
 import type { Metadata } from 'next';
 
 interface PageProps {
@@ -101,6 +102,17 @@ export default async function PublicThankyouPage({ params, searchParams }: PageP
     .eq('funnel_page_id', funnel.id)
     .order('question_order', { ascending: true });
 
+  // Fetch page sections for thankyou
+  const { data: sectionRows } = await supabase
+    .from('funnel_page_sections')
+    .select('*')
+    .eq('funnel_page_id', funnel.id)
+    .eq('page_location', 'thankyou')
+    .eq('is_visible', true)
+    .order('sort_order', { ascending: true });
+
+  const sections = (sectionRows as FunnelPageSectionRow[] || []).map(funnelPageSectionFromRow);
+
   return (
     <ThankyouPage
       leadId={leadId || null}
@@ -125,6 +137,7 @@ export default async function PublicThankyouPage({ params, searchParams }: PageP
       logoUrl={funnel.logo_url}
       contentPageUrl={contentPageUrl}
       leadMagnetTitle={leadMagnet?.title || null}
+      sections={sections}
     />
   );
 }

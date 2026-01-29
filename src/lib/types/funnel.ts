@@ -96,6 +96,72 @@ export interface WebhookConfig {
 }
 
 // ============================================
+// FUNNEL PAGE SECTIONS (Design System)
+// ============================================
+
+export type SectionType = 'logo_bar' | 'steps' | 'testimonial' | 'marketing_block' | 'section_bridge';
+export type PageLocation = 'optin' | 'thankyou' | 'content';
+
+export interface LogoBarConfig {
+  logos: Array<{ name: string; imageUrl: string }>;
+}
+
+export interface StepsConfig {
+  heading?: string;
+  subheading?: string;
+  steps: Array<{ title: string; description: string; icon?: string }>;
+}
+
+export interface TestimonialConfig {
+  quote: string;
+  author?: string;
+  role?: string;
+  result?: string;
+}
+
+export interface MarketingBlockConfig {
+  blockType: 'testimonial' | 'case_study' | 'feature' | 'benefit' | 'faq' | 'pricing' | 'cta';
+  title?: string;
+  content?: string;
+  imageUrl?: string;
+  ctaText?: string;
+  ctaUrl?: string;
+}
+
+export interface SectionBridgeConfig {
+  text: string;
+  variant?: 'default' | 'accent' | 'gradient';
+  stepNumber?: number;
+  stepLabel?: string;
+}
+
+export type SectionConfig = LogoBarConfig | StepsConfig | TestimonialConfig | MarketingBlockConfig | SectionBridgeConfig;
+
+export interface FunnelPageSection {
+  id: string;
+  funnelPageId: string;
+  sectionType: SectionType;
+  pageLocation: PageLocation;
+  sortOrder: number;
+  isVisible: boolean;
+  config: SectionConfig;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FunnelPageSectionRow {
+  id: string;
+  funnel_page_id: string;
+  section_type: string;
+  page_location: string;
+  sort_order: number;
+  is_visible: boolean;
+  config: SectionConfig;
+  created_at: string;
+  updated_at: string;
+}
+
+// ============================================
 // API PAYLOADS
 // ============================================
 
@@ -400,6 +466,20 @@ export function webhookConfigFromRow(row: WebhookConfigRow): WebhookConfig {
     name: row.name,
     url: row.url,
     isActive: row.is_active,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function funnelPageSectionFromRow(row: FunnelPageSectionRow): FunnelPageSection {
+  return {
+    id: row.id,
+    funnelPageId: row.funnel_page_id,
+    sectionType: row.section_type as SectionType,
+    pageLocation: row.page_location as PageLocation,
+    sortOrder: row.sort_order,
+    isVisible: row.is_visible,
+    config: row.config,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

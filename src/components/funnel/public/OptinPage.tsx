@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
+import { getThemeVars } from '@/lib/utils/theme-vars';
+import { CTAButton, SectionRenderer } from '@/components/ds';
+import type { FunnelPageSection } from '@/lib/types/funnel';
 
 interface OptinPageProps {
   funnelId: string;
@@ -16,6 +19,7 @@ interface OptinPageProps {
   primaryColor?: string;
   backgroundStyle?: 'solid' | 'gradient' | 'pattern';
   logoUrl?: string | null;
+  sections?: FunnelPageSection[];
 }
 
 export function OptinPage({
@@ -30,6 +34,7 @@ export function OptinPage({
   primaryColor = '#8b5cf6',
   backgroundStyle = 'solid',
   logoUrl,
+  sections = [],
 }: OptinPageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -37,29 +42,26 @@ export function OptinPage({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Theme-based colors
+  const themeVars = getThemeVars(theme, primaryColor);
   const isDark = theme === 'dark';
-  const bgColor = isDark ? '#09090B' : '#FAFAFA';
-  const textColor = isDark ? '#FAFAFA' : '#09090B';
-  const mutedColor = isDark ? '#A1A1AA' : '#71717A';
-  const borderColor = isDark ? '#27272A' : '#E4E4E7';
-  const inputBg = isDark ? '#09090B' : '#FFFFFF';
-  const placeholderColor = isDark ? '#71717A' : '#A1A1AA';
 
   // Background style
-  const getBackgroundStyle = () => {
+  const getBackgroundStyle = (): string => {
+    const bgColor = isDark ? '#09090B' : '#FAFAFA';
     if (backgroundStyle === 'gradient') {
       return isDark
         ? `linear-gradient(135deg, ${bgColor} 0%, #18181B 50%, ${bgColor} 100%)`
         : `linear-gradient(135deg, ${bgColor} 0%, #FFFFFF 50%, ${bgColor} 100%)`;
     }
     if (backgroundStyle === 'pattern') {
-      return isDark
-        ? `radial-gradient(circle at 50% 50%, ${primaryColor}15 0%, transparent 50%), ${bgColor}`
-        : `radial-gradient(circle at 50% 50%, ${primaryColor}15 0%, transparent 50%), ${bgColor}`;
+      return `radial-gradient(circle at 50% 50%, ${primaryColor}15 0%, transparent 50%), ${bgColor}`;
     }
     return bgColor;
   };
+
+  // Split sections into above-form and below-form
+  const aboveSections = sections.filter(s => s.sortOrder < 50);
+  const belowSections = sections.filter(s => s.sortOrder >= 50);
 
   // Track page view on mount
   useEffect(() => {
@@ -67,9 +69,7 @@ export function OptinPage({
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ funnelPageId: funnelId }),
-    }).catch(() => {
-      // Ignore tracking errors
-    });
+    }).catch(() => {});
   }, [funnelId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -98,8 +98,6 @@ export function OptinPage({
       }
 
       const { leadId } = await response.json();
-
-      // Redirect to thank-you page
       router.push(`/p/${username}/${slug}/thankyou?leadId=${leadId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
@@ -111,34 +109,34 @@ export function OptinPage({
   return (
     <div
       className="min-h-screen flex flex-col items-center justify-center px-4 py-12"
-      style={{ background: getBackgroundStyle() }}
+      style={{ background: getBackgroundStyle(), ...themeVars }}
     >
       <div className="w-full max-w-md space-y-8 text-center">
         {/* Logo */}
         {logoUrl && (
-          <img
-            src={logoUrl}
-            alt="Logo"
-            className="h-12 w-auto mx-auto"
-          />
+          <img src={logoUrl} alt="Logo" className="h-12 w-auto mx-auto" />
         )}
 
         {/* Headline */}
         <h1
           className="text-3xl md:text-4xl font-semibold leading-tight"
-          style={{ color: textColor }}
+          style={{ color: 'var(--ds-text)' }}
         >
           {headline}
         </h1>
 
         {/* Subline */}
         {subline && (
-          <p
-            className="text-lg leading-relaxed"
-            style={{ color: mutedColor }}
-          >
+          <p className="text-lg leading-relaxed" style={{ color: 'var(--ds-muted)' }}>
             {subline}
           </p>
+        )}
+
+        {/* Above-form sections */}
+        {aboveSections.length > 0 && (
+          <div className="space-y-6 text-left">
+            {aboveSections.map(s => <SectionRenderer key={s.id} section={s} />)}
+          </div>
         )}
 
         {/* Form */}
@@ -151,35 +149,49 @@ export function OptinPage({
             required
             className="w-full rounded-lg px-4 py-3 text-sm outline-none transition-colors"
             style={{
-              background: inputBg,
-              border: `1px solid ${borderColor}`,
-              color: textColor,
+              background: 'var(--ds-bg)',
+              border: '1px solid var(--ds-border)',
+              color: 'var(--ds-text)',
             }}
           />
 
           {error && (
-            <p className="text-sm text-red-400">
-              {error}
-            </p>
+            <p className="text-sm text-red-400">{error}</p>
           )}
 
-          <button
-            type="submit"
-            disabled={submitting || !email}
-            className="w-full rounded-lg px-4 py-3 text-sm font-medium text-white disabled:opacity-50 flex items-center justify-center gap-2 transition-colors hover:opacity-90"
-            style={{ background: primaryColor }}
-          >
-            {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            {buttonText}
-          </button>
+          <div className="w-full">
+            {submitting ? (
+              <button
+                type="submit"
+                disabled
+                className="w-full rounded-lg px-4 py-3 text-sm font-medium text-white opacity-50 flex items-center justify-center gap-2"
+                style={{ background: primaryColor }}
+              >
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {buttonText}
+              </button>
+            ) : (
+              <CTAButton
+                text={buttonText}
+                type="submit"
+                icon="arrow"
+                className="w-full"
+                disabled={!email}
+              />
+            )}
+          </div>
         </form>
+
+        {/* Below-form sections */}
+        {belowSections.length > 0 && (
+          <div className="space-y-6 text-left">
+            {belowSections.map(s => <SectionRenderer key={s.id} section={s} />)}
+          </div>
+        )}
 
         {/* Social Proof */}
         {socialProof && (
-          <p
-            className="text-sm"
-            style={{ color: placeholderColor }}
-          >
+          <p className="text-sm" style={{ color: 'var(--ds-placeholder)' }}>
             {socialProof}
           </p>
         )}
@@ -192,7 +204,7 @@ export function OptinPage({
           target="_blank"
           rel="noopener noreferrer"
           className="text-xs transition-colors hover:opacity-80"
-          style={{ color: placeholderColor }}
+          style={{ color: 'var(--ds-placeholder)' }}
         >
           Powered by MagnetLab
         </a>

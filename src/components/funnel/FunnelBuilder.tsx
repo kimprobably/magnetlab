@@ -9,6 +9,7 @@ import { QuestionsManager } from './QuestionsManager';
 import { ThemeEditor } from './ThemeEditor';
 import { EmailSequenceTab } from './EmailSequenceTab';
 import { ContentPageTab } from './ContentPageTab';
+import { SectionsManager } from './SectionsManager';
 import { FunnelPreview } from './FunnelPreview';
 import { PublishControls } from './PublishControls';
 import { LeadDeliveryInfo } from './LeadDeliveryInfo';
@@ -22,7 +23,7 @@ interface FunnelBuilderProps {
   username: string | null;
 }
 
-type TabType = 'optin' | 'thankyou' | 'questions' | 'theme' | 'content' | 'email';
+type TabType = 'optin' | 'thankyou' | 'questions' | 'theme' | 'sections' | 'content' | 'email';
 
 export function FunnelBuilder({
   leadMagnet,
@@ -176,6 +177,7 @@ export function FunnelBuilder({
     { id: 'thankyou' as const, label: 'Thank-you Page' },
     { id: 'questions' as const, label: 'Qualification' },
     { id: 'theme' as const, label: 'Theme' },
+    { id: 'sections' as const, label: 'Sections' },
     { id: 'content' as const, label: 'Content' },
     { id: 'email' as const, label: 'Email' },
   ];
@@ -282,6 +284,12 @@ export function FunnelBuilder({
               setBackgroundStyle={setBackgroundStyle}
               logoUrl={logoUrl}
               setLogoUrl={setLogoUrl}
+            />
+          )}
+
+          {activeTab === 'sections' && (
+            <SectionsManager
+              funnelId={funnel?.id || null}
             />
           )}
 

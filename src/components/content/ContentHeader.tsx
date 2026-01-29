@@ -1,6 +1,7 @@
 'use client';
 
-import { Sun, Moon, Pencil, X } from 'lucide-react';
+import { Pencil, X } from 'lucide-react';
+import { ThemeToggle } from '@/components/ds';
 
 interface ContentHeaderProps {
   logoUrl: string | null;
@@ -67,23 +68,7 @@ export function ContentHeader({ logoUrl, isDark, onToggleTheme, isOwner, isEditi
               {isEditing ? <X size={20} /> : <Pencil size={20} />}
             </button>
           )}
-          <button
-            onClick={onToggleTheme}
-            style={{
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              padding: '0.5rem',
-              borderRadius: '0.5rem',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: iconColor,
-            }}
-            aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-          >
-            {isDark ? <Sun size={20} /> : <Moon size={20} />}
-          </button>
+          <ThemeToggle isDark={isDark} onToggle={onToggleTheme} />
         </div>
       </div>
     </header>
