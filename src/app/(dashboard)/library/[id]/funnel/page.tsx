@@ -59,6 +59,8 @@ export default async function FunnelBuilderPage({ params }: PageProps) {
     leadsharkPostId: leadMagnetData.leadshark_post_id,
     leadsharkAutomationId: leadMagnetData.leadshark_automation_id,
     scheduledTime: leadMagnetData.scheduled_time,
+    polishedContent: leadMagnetData.polished_content,
+    polishedAt: leadMagnetData.polished_at,
     status: leadMagnetData.status,
     publishedAt: leadMagnetData.published_at,
     createdAt: leadMagnetData.created_at,

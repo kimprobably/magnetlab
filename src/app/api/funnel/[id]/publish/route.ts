@@ -6,6 +6,8 @@ import { auth } from '@/lib/auth';
 import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
 import { funnelPageFromRow, type FunnelPageRow } from '@/lib/types/funnel';
 import { ApiErrors, logApiError } from '@/lib/api/errors';
+import { polishLeadMagnetContent } from '@/lib/ai/lead-magnet-generator';
+import type { ExtractedContent, LeadMagnetConcept } from '@/lib/types/lead-magnet';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -56,6 +58,34 @@ export async function POST(request: Request, { params }: RouteParams) {
       // Validate funnel has required fields
       if (!funnel.optin_headline) {
         return ApiErrors.validationError('Opt-in headline is required before publishing');
+      }
+    }
+
+    // Auto-polish content on first publish if needed
+    if (publish) {
+      try {
+        const { data: lm } = await supabase
+          .from('lead_magnets')
+          .select('id, extracted_content, polished_content, concept')
+          .eq('id', funnel.lead_magnets.id)
+          .single();
+
+        if (lm?.extracted_content && !lm.polished_content && lm.concept) {
+          const polished = await polishLeadMagnetContent(
+            lm.extracted_content as ExtractedContent,
+            lm.concept as LeadMagnetConcept
+          );
+          await supabase
+            .from('lead_magnets')
+            .update({
+              polished_content: polished,
+              polished_at: new Date().toISOString(),
+            })
+            .eq('id', lm.id);
+        }
+      } catch (polishError) {
+        // Don't block publishing if polish fails
+        logApiError('funnel/publish/auto-polish', polishError, { userId: session.user.id, funnelId: id });
       }
     }
 

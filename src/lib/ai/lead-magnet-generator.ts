@@ -611,7 +611,11 @@ Keep responses concise but thorough. Ask one focused question at a time.`;
 // SMART CONTEXT IMPORT - Extract BusinessContext from unstructured content
 // =============================================================================
 
-import type { ExtractionResult, ContentType } from '@/lib/types/lead-magnet';
+import type {
+  ExtractionResult,
+  ContentType,
+  PolishedContent,
+} from '@/lib/types/lead-magnet';
 
 const CONTEXT_EXTRACTION_PROMPT = `You are an expert at extracting business context from unstructured content.
 Your job is to identify key information that would help generate lead magnet ideas.
@@ -704,5 +708,97 @@ export async function extractBusinessContext(
     return JSON.parse(textContent.text) as ExtractionResult;
   } catch {
     throw new Error('Failed to parse context extraction response');
+  }
+}
+
+// =============================================================================
+// CONTENT POLISHING - Transform extracted content into polished blocks
+// =============================================================================
+
+export async function polishLeadMagnetContent(
+  extractedContent: ExtractedContent,
+  concept: LeadMagnetConcept
+): Promise<PolishedContent> {
+  const prompt = `You are a content designer who transforms raw lead magnet content into beautifully structured, polished content blocks for a Notion-like reading experience.
+
+LEAD MAGNET:
+Title: ${concept.title}
+Archetype: ${concept.archetypeName}
+Pain Solved: ${concept.painSolved}
+
+EXTRACTED CONTENT:
+${JSON.stringify(extractedContent, null, 2)}
+
+Transform this into polished content blocks. For each section in the extracted content:
+
+1. Write a clear introduction paragraph (2-3 sentences)
+2. Transform the section contents into a mix of block types:
+   - "paragraph": Rich text with **bold** for emphasis. Use proper line breaks between ideas. Each paragraph should be 2-4 sentences.
+   - "callout": Key insights, warnings, or tips. Must include "style": "info" | "warning" | "success"
+   - "list": Bullet-pointed lists for steps, items, or enumerations. Use "- " prefix for each item, separated by newlines.
+   - "quote": Powerful statements, memorable takeaways, or impactful phrases
+   - "divider": Visual separator between major ideas (content should be empty string)
+3. End each section with a keyTakeaway (1-2 sentences, the main insight)
+
+Also provide:
+- heroSummary: A compelling 1-2 sentence hook that makes someone want to read the entire piece
+- metadata.wordCount: Estimate total word count
+- metadata.readingTimeMinutes: Based on 200 words per minute
+
+CONTENT GUIDELINES:
+- Break long paragraphs into multiple paragraph blocks
+- Use callouts for "Pro tip", "Common mistake", "Key insight" moments
+- Use quotes for memorable, shareable statements
+- Use lists when there are 3+ items that work as bullets
+- Use dividers sparingly between major topic shifts within a section
+- Parse **bold** in paragraph content for emphasis on key phrases
+- Keep the voice professional but approachable
+- Every section should have at least 3-5 blocks for visual variety
+
+Return ONLY valid JSON:
+{
+  "version": 1,
+  "polishedAt": "${new Date().toISOString()}",
+  "sections": [
+    {
+      "id": "section-slug",
+      "sectionName": "Section Title",
+      "introduction": "2-3 sentence intro...",
+      "blocks": [
+        { "type": "paragraph", "content": "Text with **bold**..." },
+        { "type": "callout", "content": "Key insight here", "style": "info" },
+        { "type": "list", "content": "- Item one\\n- Item two\\n- Item three" },
+        { "type": "quote", "content": "Memorable statement" },
+        { "type": "divider", "content": "" }
+      ],
+      "keyTakeaway": "Main insight from this section"
+    }
+  ],
+  "heroSummary": "Compelling 1-2 sentence hook...",
+  "metadata": {
+    "readingTimeMinutes": 5,
+    "wordCount": 1000
+  }
+}`;
+
+  const response = await getAnthropicClient().messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 8000,
+    messages: [{ role: 'user', content: prompt }],
+  });
+
+  const textContent = response.content.find((block) => block.type === 'text');
+  if (!textContent || textContent.type !== 'text') {
+    throw new Error('No text response from Claude');
+  }
+
+  try {
+    const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]) as PolishedContent;
+    }
+    return JSON.parse(textContent.text) as PolishedContent;
+  } catch {
+    throw new Error('Failed to parse polished content response');
   }
 }

@@ -212,6 +212,38 @@ export interface ExtractionResult {
 }
 
 // ============================================
+// POLISHED CONTENT (for public content page)
+// ============================================
+
+export type PolishedBlockType = 'paragraph' | 'callout' | 'list' | 'quote' | 'divider';
+export type CalloutStyle = 'info' | 'warning' | 'success';
+
+export interface PolishedBlock {
+  type: PolishedBlockType;
+  content: string;
+  style?: CalloutStyle;
+}
+
+export interface PolishedSection {
+  id: string;
+  sectionName: string;
+  introduction: string;
+  blocks: PolishedBlock[];
+  keyTakeaway: string;
+}
+
+export interface PolishedContent {
+  version: number;
+  polishedAt: string;
+  sections: PolishedSection[];
+  heroSummary: string;
+  metadata: {
+    readingTimeMinutes: number;
+    wordCount: number;
+  };
+}
+
+// ============================================
 // LEAD MAGNET DATABASE ENTITY
 // ============================================
 
@@ -235,6 +267,8 @@ export interface LeadMagnet {
   leadsharkPostId: string | null;
   leadsharkAutomationId: string | null;
   scheduledTime: string | null;
+  polishedContent: PolishedContent | null;
+  polishedAt: string | null;
   status: LeadMagnetStatus;
   publishedAt: string | null;
   createdAt: string;

@@ -24,6 +24,8 @@ interface ThankyouPageProps {
   primaryColor?: string;
   backgroundStyle?: 'solid' | 'gradient' | 'pattern';
   logoUrl?: string | null;
+  contentPageUrl?: string | null;
+  leadMagnetTitle?: string | null;
 }
 
 export function ThankyouPage({
@@ -39,6 +41,8 @@ export function ThankyouPage({
   primaryColor = '#8b5cf6',
   backgroundStyle = 'solid',
   logoUrl,
+  contentPageUrl,
+  leadMagnetTitle,
 }: ThankyouPageProps) {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, 'yes' | 'no'>>({});
@@ -158,6 +162,32 @@ export function ThankyouPage({
             </p>
           )}
         </div>
+
+        {/* Content page link */}
+        {contentPageUrl && (
+          <div className="text-center">
+            <a
+              href={contentPageUrl}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.75rem 1.5rem',
+                borderRadius: '0.5rem',
+                background: primaryColor,
+                color: '#FFFFFF',
+                fontWeight: 500,
+                fontSize: '1rem',
+                textDecoration: 'none',
+                transition: 'opacity 0.15s',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.9')}
+              onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
+            >
+              Access Your {leadMagnetTitle || 'Content'}
+            </a>
+          </div>
+        )}
 
         {/* Video (show immediately to everyone) */}
         {vslUrl && (

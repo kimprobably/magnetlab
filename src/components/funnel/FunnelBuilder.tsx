@@ -8,11 +8,12 @@ import { ThankyouPageEditor } from './ThankyouPageEditor';
 import { QuestionsManager } from './QuestionsManager';
 import { ThemeEditor } from './ThemeEditor';
 import { EmailSequenceTab } from './EmailSequenceTab';
+import { ContentPageTab } from './ContentPageTab';
 import { FunnelPreview } from './FunnelPreview';
 import { PublishControls } from './PublishControls';
 import { LeadDeliveryInfo } from './LeadDeliveryInfo';
 import type { FunnelPage, QualificationQuestion, GeneratedOptinContent, FunnelTheme, BackgroundStyle } from '@/lib/types/funnel';
-import type { LeadMagnet } from '@/lib/types/lead-magnet';
+import type { LeadMagnet, PolishedContent } from '@/lib/types/lead-magnet';
 
 interface FunnelBuilderProps {
   leadMagnet: LeadMagnet;
@@ -21,7 +22,7 @@ interface FunnelBuilderProps {
   username: string | null;
 }
 
-type TabType = 'optin' | 'thankyou' | 'questions' | 'theme' | 'email';
+type TabType = 'optin' | 'thankyou' | 'questions' | 'theme' | 'content' | 'email';
 
 export function FunnelBuilder({
   leadMagnet,
@@ -56,6 +57,9 @@ export function FunnelBuilder({
   const [primaryColor, setPrimaryColor] = useState(existingFunnel?.primaryColor || '#8b5cf6');
   const [backgroundStyle, setBackgroundStyle] = useState<BackgroundStyle>(existingFunnel?.backgroundStyle || 'solid');
   const [logoUrl, setLogoUrl] = useState<string | null>(existingFunnel?.logoUrl || null);
+
+  // Lead magnet state (for content tab updates)
+  const [currentLeadMagnet, setCurrentLeadMagnet] = useState<LeadMagnet>(leadMagnet);
 
   function generateSlug(title: string): string {
     return title
@@ -172,6 +176,7 @@ export function FunnelBuilder({
     { id: 'thankyou' as const, label: 'Thank-you Page' },
     { id: 'questions' as const, label: 'Qualification' },
     { id: 'theme' as const, label: 'Theme' },
+    { id: 'content' as const, label: 'Content' },
     { id: 'email' as const, label: 'Email' },
   ];
 
@@ -277,6 +282,21 @@ export function FunnelBuilder({
               setBackgroundStyle={setBackgroundStyle}
               logoUrl={logoUrl}
               setLogoUrl={setLogoUrl}
+            />
+          )}
+
+          {activeTab === 'content' && (
+            <ContentPageTab
+              leadMagnet={currentLeadMagnet}
+              username={username}
+              slug={slug}
+              onPolished={(polishedContent: PolishedContent, polishedAt: string) => {
+                setCurrentLeadMagnet({
+                  ...currentLeadMagnet,
+                  polishedContent,
+                  polishedAt,
+                });
+              }}
             />
           )}
 

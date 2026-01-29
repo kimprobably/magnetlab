@@ -63,6 +63,7 @@ export default async function PublicThankyouPage({ params, searchParams }: PageP
     .from('funnel_pages')
     .select(`
       id,
+      lead_magnet_id,
       thankyou_headline,
       thankyou_subline,
       vsl_url,
@@ -82,6 +83,16 @@ export default async function PublicThankyouPage({ params, searchParams }: PageP
   if (funnelError || !funnel || !funnel.is_published) {
     notFound();
   }
+
+  // Get lead magnet info for content page link
+  const { data: leadMagnet } = await supabase
+    .from('lead_magnets')
+    .select('title, polished_content, extracted_content')
+    .eq('id', funnel.lead_magnet_id)
+    .single();
+
+  const hasContent = !!(leadMagnet?.polished_content || leadMagnet?.extracted_content);
+  const contentPageUrl = hasContent ? `/p/${username}/${slug}/content` : null;
 
   // Get qualification questions
   const { data: questions } = await supabase
@@ -108,6 +119,8 @@ export default async function PublicThankyouPage({ params, searchParams }: PageP
       primaryColor={funnel.primary_color || '#8b5cf6'}
       backgroundStyle={(funnel.background_style as 'solid' | 'gradient' | 'pattern') || 'solid'}
       logoUrl={funnel.logo_url}
+      contentPageUrl={contentPageUrl}
+      leadMagnetTitle={leadMagnet?.title || null}
     />
   );
 }
