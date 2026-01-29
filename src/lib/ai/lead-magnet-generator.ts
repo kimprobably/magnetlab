@@ -731,14 +731,14 @@ ${JSON.stringify(extractedContent, null, 2)}
 
 Transform this into polished content blocks. For each section in the extracted content:
 
-1. Write a clear introduction paragraph (2-3 sentences)
+1. Write a concise introduction (1-2 sentences that set up the section)
 2. Transform the section contents into a mix of block types:
-   - "paragraph": Rich text with **bold** for emphasis. Use proper line breaks between ideas. Each paragraph should be 2-4 sentences.
+   - "paragraph": Clear, direct text with **bold** for emphasis. Each paragraph should be 1-3 sentences. Say it once, say it well — no filler or restating.
    - "callout": Key insights, warnings, or tips. Must include "style": "info" | "warning" | "success"
    - "list": Bullet-pointed lists for steps, items, or enumerations. Use "- " prefix for each item, separated by newlines.
    - "quote": Powerful statements, memorable takeaways, or impactful phrases
    - "divider": Visual separator between major ideas (content should be empty string)
-3. End each section with a keyTakeaway (1-2 sentences, the main insight)
+3. End each section with a keyTakeaway (1 sentence, the single most actionable insight)
 
 Also provide:
 - heroSummary: A compelling 1-2 sentence hook that makes someone want to read the entire piece
@@ -746,13 +746,15 @@ Also provide:
 - metadata.readingTimeMinutes: Based on 200 words per minute
 
 CONTENT GUIDELINES:
+- Be concise and actionable — every sentence should teach, reveal, or direct. Cut filler, throat-clearing, and redundant transitions.
+- Prefer specific, concrete language over vague or generic phrasing
 - Break long paragraphs into multiple paragraph blocks
 - Use callouts for "Pro tip", "Common mistake", "Key insight" moments
 - Use quotes for memorable, shareable statements
 - Use lists when there are 3+ items that work as bullets
 - Use dividers sparingly between major topic shifts within a section
 - Parse **bold** in paragraph content for emphasis on key phrases
-- Keep the voice professional but approachable
+- Keep the voice professional but direct — respect the reader's time
 - Every section should have at least 3-5 blocks for visual variety
 
 Return ONLY valid JSON:
