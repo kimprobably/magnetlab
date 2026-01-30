@@ -11,7 +11,7 @@ function getAnthropicClient(): Anthropic {
   if (!apiKey) {
     throw new Error('ANTHROPIC_API_KEY is not set in environment variables');
   }
-  return new Anthropic({ apiKey });
+  return new Anthropic({ apiKey, timeout: 30_000 });
 }
 
 const OPTIN_CONTENT_SYSTEM_PROMPT = `You are an expert copywriter specializing in high-converting opt-in pages for digital lead magnets. Your copy is:

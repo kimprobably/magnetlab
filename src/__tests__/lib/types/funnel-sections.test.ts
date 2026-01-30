@@ -60,7 +60,7 @@ describe('funnelPageSectionFromRow', () => {
 
   it('should preserve complex config objects', () => {
     const complexConfig = {
-      blockType: 'faq',
+      blockType: 'faq' as const,
       title: 'FAQ',
       content: 'Q: What? | A: This\nQ: How? | A: That',
     };
@@ -70,8 +70,8 @@ describe('funnelPageSectionFromRow', () => {
   });
 
   it('should handle empty config', () => {
-    const row: FunnelPageSectionRow = { ...mockRow, config: {} };
+    const row: FunnelPageSectionRow = { ...mockRow, config: { quote: '' } };
     const result = funnelPageSectionFromRow(row);
-    expect(result.config).toEqual({});
+    expect(result.config).toEqual({ quote: '' });
   });
 });

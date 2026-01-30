@@ -17,12 +17,19 @@ describe('Section Validation Schemas', () => {
     });
 
     it('should accept all section types', () => {
+      const configByType: Record<string, unknown> = {
+        logo_bar: { logos: [{ name: 'Co', imageUrl: 'https://img.com/logo.png' }] },
+        steps: { steps: [{ title: 'Step 1', description: 'Do this' }] },
+        testimonial: { quote: 'Great!' },
+        marketing_block: { blockType: 'feature' },
+        section_bridge: { text: 'Next' },
+      };
       const types = ['logo_bar', 'steps', 'testimonial', 'marketing_block', 'section_bridge'];
       types.forEach(sectionType => {
         const result = createSectionSchema.safeParse({
           sectionType,
           pageLocation: 'optin',
-          config: {},
+          config: configByType[sectionType],
         });
         expect(result.success).toBe(true);
       });
@@ -34,7 +41,7 @@ describe('Section Validation Schemas', () => {
         const result = createSectionSchema.safeParse({
           sectionType: 'testimonial',
           pageLocation,
-          config: {},
+          config: { quote: 'Great!' },
         });
         expect(result.success).toBe(true);
       });
@@ -62,7 +69,7 @@ describe('Section Validation Schemas', () => {
       const result = createSectionSchema.safeParse({
         sectionType: 'steps',
         pageLocation: 'thankyou',
-        config: {},
+        config: { steps: [{ title: 'Step 1', description: 'Do this' }] },
         sortOrder: 25,
         isVisible: false,
       });
@@ -123,8 +130,8 @@ describe('Section Validation Schemas', () => {
 
     it('should validate logo_bar config', () => {
       const schema = sectionConfigSchemas.logo_bar;
-      // Requires at least 1 logo with valid URL
-      expect(schema.safeParse({ logos: [] }).success).toBe(false);
+      // Empty logos array is valid (user may add logos later)
+      expect(schema.safeParse({ logos: [] }).success).toBe(true);
       expect(schema.safeParse({ logos: [{ name: 'Co', imageUrl: 'https://img.com/logo.png' }] }).success).toBe(true);
     });
 

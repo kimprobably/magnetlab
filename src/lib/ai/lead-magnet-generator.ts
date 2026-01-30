@@ -19,7 +19,7 @@ function getAnthropicClient(): Anthropic {
   if (!apiKey) {
     throw new Error('ANTHROPIC_API_KEY is not set in environment variables');
   }
-  return new Anthropic({ apiKey });
+  return new Anthropic({ apiKey, timeout: 30_000 });
 }
 
 // =============================================================================

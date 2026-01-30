@@ -61,11 +61,47 @@ export const leadMagnetArchetypes = [
   'comparison-chart',
 ] as const;
 
+const conceptSchema = z.object({
+  archetype: z.string().optional(),
+  archetypeName: z.string().optional(),
+  title: z.string(),
+  painSolved: z.string(),
+  whyNowHook: z.string().optional(),
+  linkedinPost: z.string().optional(),
+  contents: z.string().optional(),
+  deliveryFormat: z.string(),
+  viralCheck: z.object({
+    highValue: z.boolean(),
+    urgentPain: z.boolean(),
+    actionableUnder1h: z.boolean(),
+    simple: z.boolean(),
+    authorityBoosting: z.boolean(),
+  }).optional(),
+  creationTimeEstimate: z.string().optional(),
+  bundlePotential: z.array(z.string()).optional(),
+  isImported: z.boolean().optional(),
+  isQuickCreate: z.boolean().optional(),
+}).passthrough();
+
+const extractedContentSchema = z.object({
+  title: z.string(),
+  format: z.string(),
+  structure: z.array(z.object({
+    sectionName: z.string(),
+    contents: z.array(z.string()),
+  })).optional(),
+  nonObviousInsight: z.string(),
+  personalExperience: z.string().optional(),
+  proof: z.string().optional(),
+  commonMistakes: z.array(z.string()).optional(),
+  differentiation: z.string(),
+}).passthrough();
+
 export const createLeadMagnetSchema = z.object({
   title: z.string().min(1).max(200),
   archetype: z.enum(leadMagnetArchetypes),
-  concept: z.any().optional(),
-  extractedContent: z.any().optional(),
+  concept: conceptSchema.optional(),
+  extractedContent: extractedContentSchema.optional(),
   linkedinPost: z.string().optional(),
   postVariations: z.array(z.string()).optional(),
   dmTemplate: z.string().optional(),
@@ -163,12 +199,20 @@ export const sectionConfigSchemas = {
   section_bridge: sectionBridgeConfigSchema,
 } as const;
 
+const sectionConfigSchema = z.union([
+  logoBarConfigSchema,
+  stepsConfigSchema,
+  testimonialConfigSchema,
+  marketingBlockConfigSchema,
+  sectionBridgeConfigSchema,
+]);
+
 export const createSectionSchema = z.object({
   sectionType: z.enum(sectionTypes),
   pageLocation: z.enum(pageLocations),
   sortOrder: z.number().int().min(0).max(999).optional(),
   isVisible: z.boolean().optional(),
-  config: z.record(z.unknown()),
+  config: sectionConfigSchema,
 });
 
 export type CreateSectionInput = z.infer<typeof createSectionSchema>;
@@ -177,7 +221,7 @@ export const updateSectionSchema = z.object({
   sortOrder: z.number().int().min(0).max(999).optional(),
   isVisible: z.boolean().optional(),
   pageLocation: z.enum(pageLocations).optional(),
-  config: z.record(z.unknown()).optional(),
+  config: sectionConfigSchema.optional(),
 });
 
 export type UpdateSectionInput = z.infer<typeof updateSectionSchema>;

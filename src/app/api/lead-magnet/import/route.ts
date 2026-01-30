@@ -10,7 +10,7 @@ import Anthropic from '@anthropic-ai/sdk';
 const getAnthropicClient = () => {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured');
-  return new Anthropic({ apiKey });
+  return new Anthropic({ apiKey, timeout: 30_000 });
 };
 
 interface ImportedContent {
@@ -147,26 +147,38 @@ export async function POST(request: Request) {
     }
 
     // Create funnel page
-    const { data: funnelPage, error: fpError } = await supabase
+    const funnelInsertData = {
+      lead_magnet_id: leadMagnet.id,
+      user_id: session.user.id,
+      slug,
+      optin_headline: extracted.headline,
+      optin_subline: extracted.subline,
+      optin_button_text: 'Get Free Access',
+      optin_social_proof: extracted.socialProof,
+      thankyou_headline: 'Thanks! Check your email.',
+      thankyou_subline: `Your ${extracted.format || 'download'} is on its way.`,
+      qualification_pass_message: 'Great! Book a call below.',
+      qualification_fail_message: 'Thanks for your interest!',
+      theme: 'dark',
+      primary_color: '#8b5cf6',
+      background_style: 'solid',
+    };
+
+    let { data: funnelPage, error: fpError } = await supabase
       .from('funnel_pages')
-      .insert({
-        lead_magnet_id: leadMagnet.id,
-        user_id: session.user.id,
-        slug,
-        optin_headline: extracted.headline,
-        optin_subline: extracted.subline,
-        optin_button_text: 'Get Free Access',
-        optin_social_proof: extracted.socialProof,
-        thankyou_headline: 'Thanks! Check your email.',
-        thankyou_subline: `Your ${extracted.format || 'download'} is on its way.`,
-        qualification_pass_message: 'Great! Book a call below.',
-        qualification_fail_message: 'Thanks for your interest!',
-        theme: 'dark',
-        primary_color: '#8b5cf6',
-        background_style: 'solid',
-      })
+      .insert(funnelInsertData)
       .select('id')
       .single();
+
+    // Retry once with random suffix on unique constraint violation
+    if (fpError?.code === '23505') {
+      slug = `${slug}-${Date.now().toString(36).slice(-4)}`;
+      ({ data: funnelPage, error: fpError } = await supabase
+        .from('funnel_pages')
+        .insert({ ...funnelInsertData, slug })
+        .select('id')
+        .single());
+    }
 
     if (fpError) {
       // Clean up the lead magnet if funnel page creation fails
@@ -178,7 +190,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       leadMagnetId: leadMagnet.id,
-      funnelPageId: funnelPage.id,
+      funnelPageId: funnelPage!.id,
       extracted,
     }, { status: 201 });
   } catch (error) {

@@ -121,35 +121,44 @@ export async function POST(request: Request) {
     }
 
     // Create funnel page
-    const { data, error } = await supabase
+    const funnelInsertData = {
+      lead_magnet_id: leadMagnetId,
+      user_id: session.user.id,
+      slug: finalSlug,
+      optin_headline: funnelData.optinHeadline || leadMagnet.title,
+      optin_subline: funnelData.optinSubline || null,
+      optin_button_text: funnelData.optinButtonText || 'Get Free Access',
+      optin_social_proof: funnelData.optinSocialProof || null,
+      thankyou_headline: funnelData.thankyouHeadline || 'Thanks! Check your email.',
+      thankyou_subline: funnelData.thankyouSubline || null,
+      vsl_url: funnelData.vslUrl || null,
+      calendly_url: funnelData.calendlyUrl || null,
+      qualification_pass_message: funnelData.qualificationPassMessage || 'Great! Book a call below.',
+      qualification_fail_message: funnelData.qualificationFailMessage || 'Thanks for your interest!',
+      theme: funnelData.theme || 'dark',
+      primary_color: funnelData.primaryColor || '#8b5cf6',
+      background_style: funnelData.backgroundStyle || 'solid',
+      logo_url: funnelData.logoUrl || null,
+    };
+
+    let { data, error } = await supabase
       .from('funnel_pages')
-      .insert({
-        lead_magnet_id: leadMagnetId,
-        user_id: session.user.id,
-        slug: finalSlug,
-        optin_headline: funnelData.optinHeadline || leadMagnet.title,
-        optin_subline: funnelData.optinSubline || null,
-        optin_button_text: funnelData.optinButtonText || 'Get Free Access',
-        optin_social_proof: funnelData.optinSocialProof || null,
-        thankyou_headline: funnelData.thankyouHeadline || 'Thanks! Check your email.',
-        thankyou_subline: funnelData.thankyouSubline || null,
-        vsl_url: funnelData.vslUrl || null,
-        calendly_url: funnelData.calendlyUrl || null,
-        qualification_pass_message: funnelData.qualificationPassMessage || 'Great! Book a call below.',
-        qualification_fail_message: funnelData.qualificationFailMessage || 'Thanks for your interest!',
-        theme: funnelData.theme || 'dark',
-        primary_color: funnelData.primaryColor || '#8b5cf6',
-        background_style: funnelData.backgroundStyle || 'solid',
-        logo_url: funnelData.logoUrl || null,
-      })
+      .insert(funnelInsertData)
       .select()
       .single();
 
+    // Retry once with random suffix on unique constraint violation
+    if (error?.code === '23505') {
+      finalSlug = `${finalSlug}-${Date.now().toString(36).slice(-4)}`;
+      ({ data, error } = await supabase
+        .from('funnel_pages')
+        .insert({ ...funnelInsertData, slug: finalSlug })
+        .select()
+        .single());
+    }
+
     if (error) {
       logApiError('funnel/create', error, { userId: session.user.id, leadMagnetId });
-      if (error.code === '23505') {
-        return ApiErrors.conflict('A funnel with this slug already exists');
-      }
       return ApiErrors.databaseError('Failed to create funnel page');
     }
 

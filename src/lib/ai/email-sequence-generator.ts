@@ -10,7 +10,7 @@ function getAnthropicClient(): Anthropic {
   if (!apiKey) {
     throw new Error('ANTHROPIC_API_KEY is not set in environment variables');
   }
-  return new Anthropic({ apiKey });
+  return new Anthropic({ apiKey, timeout: 30_000 });
 }
 
 const EMAIL_SEQUENCE_SYSTEM_PROMPT = `You are an expert email copywriter creating a 5-email welcome sequence for someone who just downloaded a lead magnet. Your emails:

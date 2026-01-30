@@ -2,11 +2,38 @@
 
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
+import { timingSafeEqual } from 'crypto';
 import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
 import bcrypt from 'bcryptjs';
 
 // Bcrypt configuration - 12 rounds provides good security/performance balance
 const BCRYPT_SALT_ROUNDS = 12;
+
+// In-memory login rate limiting (per-instance, resets on cold start)
+const loginAttempts = new Map<string, { count: number; resetAt: number }>();
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+
+function checkRateLimit(email: string): boolean {
+  const now = Date.now();
+  const entry = loginAttempts.get(email);
+  if (!entry || now > entry.resetAt) return true;
+  return entry.count < MAX_LOGIN_ATTEMPTS;
+}
+
+function recordFailedAttempt(email: string): void {
+  const now = Date.now();
+  const entry = loginAttempts.get(email);
+  if (!entry || now > entry.resetAt) {
+    loginAttempts.set(email, { count: 1, resetAt: now + LOGIN_WINDOW_MS });
+  } else {
+    entry.count++;
+  }
+}
+
+function clearAttempts(email: string): void {
+  loginAttempts.delete(email);
+}
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
@@ -25,6 +52,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
           const email = credentials.email as string;
           const password = credentials.password as string;
+
+          // Rate limit check
+          if (!checkRateLimit(email)) {
+            console.error('[Auth] Rate limit exceeded for:', email);
+            return null;
+          }
 
           // Verify environment variables
           if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -51,6 +84,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             // Verify password with backward compatibility for legacy SHA-256 hashes
             const isValid = await verifyPassword(password, existingUser.password_hash);
             if (!isValid) {
+              recordFailedAttempt(email);
               console.error('[Auth] Invalid password for user:', email);
               return null;
             }
@@ -65,6 +99,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
               console.log('[Auth] Migrated password hash for user:', email);
             }
 
+            clearAttempts(email);
             console.log('[Auth] Login successful for:', email);
             return {
               id: existingUser.id,
@@ -168,7 +203,9 @@ async function verifyPassword(password: string, hash: string | null): Promise<bo
   // Check if this is a legacy SHA-256 hash
   if (isLegacySha256Hash(hash)) {
     const legacyHash = await hashPasswordLegacy(password);
-    return legacyHash === hash;
+    const hashBuf = Buffer.from(legacyHash, 'hex');
+    const storedBuf = Buffer.from(hash, 'hex');
+    return hashBuf.length === storedBuf.length && timingSafeEqual(hashBuf, storedBuf);
   }
 
   // Use bcrypt for modern hashes

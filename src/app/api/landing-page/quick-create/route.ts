@@ -94,26 +94,38 @@ export async function POST(request: Request) {
     }
 
     // 4. Create funnel page
-    const { data: funnelPage, error: fpError } = await supabase
+    const funnelInsertData = {
+      lead_magnet_id: leadMagnet.id,
+      user_id: session.user.id,
+      slug,
+      optin_headline: optinContent.headline,
+      optin_subline: optinContent.subline,
+      optin_button_text: optinContent.buttonText,
+      optin_social_proof: optinContent.socialProof,
+      thankyou_headline: 'Thanks! Check your email.',
+      thankyou_subline: 'Your download is on its way.',
+      qualification_pass_message: 'Great! Book a call below.',
+      qualification_fail_message: 'Thanks for your interest!',
+      theme: 'dark',
+      primary_color: '#8b5cf6',
+      background_style: 'solid',
+    };
+
+    let { data: funnelPage, error: fpError } = await supabase
       .from('funnel_pages')
-      .insert({
-        lead_magnet_id: leadMagnet.id,
-        user_id: session.user.id,
-        slug,
-        optin_headline: optinContent.headline,
-        optin_subline: optinContent.subline,
-        optin_button_text: optinContent.buttonText,
-        optin_social_proof: optinContent.socialProof,
-        thankyou_headline: 'Thanks! Check your email.',
-        thankyou_subline: 'Your download is on its way.',
-        qualification_pass_message: 'Great! Book a call below.',
-        qualification_fail_message: 'Thanks for your interest!',
-        theme: 'dark',
-        primary_color: '#8b5cf6',
-        background_style: 'solid',
-      })
+      .insert(funnelInsertData)
       .select('id')
       .single();
+
+    // Retry once with random suffix on unique constraint violation
+    if (fpError?.code === '23505') {
+      slug = `${slug}-${Date.now().toString(36).slice(-4)}`;
+      ({ data: funnelPage, error: fpError } = await supabase
+        .from('funnel_pages')
+        .insert({ ...funnelInsertData, slug })
+        .select('id')
+        .single());
+    }
 
     if (fpError) {
       // Clean up the lead magnet if funnel page creation fails
@@ -125,7 +137,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       leadMagnetId: leadMagnet.id,
-      funnelPageId: funnelPage.id,
+      funnelPageId: funnelPage!.id,
     }, { status: 201 });
   } catch (error) {
     logApiError('landing-page/quick-create', error);
