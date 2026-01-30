@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { Loader2, Sparkles } from 'lucide-react';
 import { OptinPageEditor } from './OptinPageEditor';
@@ -13,7 +13,7 @@ import { SectionsManager } from './SectionsManager';
 import { FunnelPreview } from './FunnelPreview';
 import { PublishControls } from './PublishControls';
 import { LeadDeliveryInfo } from './LeadDeliveryInfo';
-import type { FunnelPage, QualificationQuestion, GeneratedOptinContent, FunnelTheme, BackgroundStyle } from '@/lib/types/funnel';
+import type { FunnelPage, FunnelPageSection, QualificationQuestion, GeneratedOptinContent, FunnelTheme, BackgroundStyle } from '@/lib/types/funnel';
 import type { LeadMagnet, PolishedContent } from '@/lib/types/lead-magnet';
 
 interface FunnelBuilderProps {
@@ -61,6 +61,26 @@ export function FunnelBuilder({
 
   // Lead magnet state (for content tab updates)
   const [currentLeadMagnet, setCurrentLeadMagnet] = useState<LeadMagnet>(leadMagnet);
+
+  // Sections state (shared between SectionsManager and FunnelPreview)
+  const [sections, setSections] = useState<FunnelPageSection[]>([]);
+
+  const fetchSections = useCallback(async () => {
+    if (!funnel?.id) return;
+    try {
+      const res = await fetch(`/api/funnel/${funnel.id}/sections`);
+      if (res.ok) {
+        const data = await res.json();
+        setSections(data.sections);
+      }
+    } catch {
+      // ignore
+    }
+  }, [funnel?.id]);
+
+  useEffect(() => {
+    fetchSections();
+  }, [fetchSections]);
 
   function generateSlug(title: string): string {
     return title
@@ -290,6 +310,8 @@ export function FunnelBuilder({
           {activeTab === 'sections' && (
             <SectionsManager
               funnelId={funnel?.id || null}
+              sections={sections}
+              onSectionsChange={setSections}
             />
           )}
 
@@ -342,6 +364,7 @@ export function FunnelBuilder({
           buttonText={optinButtonText}
           socialProof={optinSocialProof}
           questions={questions}
+          sections={sections}
           theme={theme}
           primaryColor={primaryColor}
           backgroundStyle={backgroundStyle}

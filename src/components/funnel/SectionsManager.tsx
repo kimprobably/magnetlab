@@ -1,11 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { Loader2, Plus, Trash2, Eye, EyeOff, GripVertical, ChevronDown } from 'lucide-react';
 import type { FunnelPageSection, SectionType, PageLocation, LogoBarConfig, StepsConfig, TestimonialConfig, MarketingBlockConfig, SectionBridgeConfig } from '@/lib/types/funnel';
 
 interface SectionsManagerProps {
   funnelId: string | null;
+  sections: FunnelPageSection[];
+  onSectionsChange: (sections: FunnelPageSection[]) => void;
 }
 
 const SECTION_TYPES: { value: SectionType; label: string }[] = [
@@ -55,9 +57,7 @@ function getDefaultConfig(type: SectionType): LogoBarConfig | StepsConfig | Test
   }
 }
 
-export function SectionsManager({ funnelId }: SectionsManagerProps) {
-  const [sections, setSections] = useState<FunnelPageSection[]>([]);
-  const [loading, setLoading] = useState(false);
+export function SectionsManager({ funnelId, sections, onSectionsChange }: SectionsManagerProps) {
   const [activeLocation, setActiveLocation] = useState<PageLocation>('optin');
   const [addingType, setAddingType] = useState<SectionType | null>(null);
   const [adding, setAdding] = useState(false);
@@ -65,25 +65,6 @@ export function SectionsManager({ funnelId }: SectionsManagerProps) {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const fetchSections = useCallback(async () => {
-    if (!funnelId) return;
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/funnel/${funnelId}/sections`);
-      if (res.ok) {
-        const data = await res.json();
-        setSections(data.sections);
-      }
-    } catch {
-      // ignore
-    } finally {
-      setLoading(false);
-    }
-  }, [funnelId]);
-
-  useEffect(() => {
-    fetchSections();
-  }, [fetchSections]);
 
   const filteredSections = sections
     .filter(s => s.pageLocation === activeLocation)
@@ -104,7 +85,7 @@ export function SectionsManager({ funnelId }: SectionsManagerProps) {
       });
       if (res.ok) {
         const data = await res.json();
-        setSections(prev => [...prev, data.section]);
+        onSectionsChange([...sections, data.section]);
         setAddingType(null);
         setExpandedId(data.section.id);
       }
@@ -126,7 +107,7 @@ export function SectionsManager({ funnelId }: SectionsManagerProps) {
       });
       if (res.ok) {
         const data = await res.json();
-        setSections(prev => prev.map(s => s.id === section.id ? data.section : s));
+        onSectionsChange(sections.map(s => s.id === section.id ? data.section : s));
       }
     } catch {
       // ignore
@@ -143,7 +124,7 @@ export function SectionsManager({ funnelId }: SectionsManagerProps) {
         method: 'DELETE',
       });
       if (res.ok) {
-        setSections(prev => prev.filter(s => s.id !== sectionId));
+        onSectionsChange(sections.filter(s => s.id !== sectionId));
         if (expandedId === sectionId) setExpandedId(null);
       }
     } catch {
@@ -164,7 +145,7 @@ export function SectionsManager({ funnelId }: SectionsManagerProps) {
       });
       if (res.ok) {
         const data = await res.json();
-        setSections(prev => prev.map(s => s.id === section.id ? data.section : s));
+        onSectionsChange(sections.map(s => s.id === section.id ? data.section : s));
       }
     } catch {
       // ignore
@@ -204,16 +185,8 @@ export function SectionsManager({ funnelId }: SectionsManagerProps) {
         ))}
       </div>
 
-      {/* Loading */}
-      {loading && (
-        <div className="flex items-center justify-center py-8">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-        </div>
-      )}
-
       {/* Section list */}
-      {!loading && (
-        <div className="space-y-2">
+      <div className="space-y-2">
           {filteredSections.length === 0 && (
             <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
               No sections on this page yet.
@@ -271,7 +244,6 @@ export function SectionsManager({ funnelId }: SectionsManagerProps) {
             </div>
           ))}
         </div>
-      )}
 
       {/* Add section */}
       <div className="flex gap-2">

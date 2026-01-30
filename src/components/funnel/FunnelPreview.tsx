@@ -2,7 +2,8 @@
 
 import { Monitor, Smartphone, CheckCircle2, Play } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
-import type { QualificationQuestion, FunnelTheme, BackgroundStyle } from '@/lib/types/funnel';
+import type { QualificationQuestion, FunnelPageSection, FunnelTheme, BackgroundStyle } from '@/lib/types/funnel';
+import SectionRenderer from '@/components/ds/SectionRenderer';
 
 interface FunnelPreviewProps {
   headline: string;
@@ -10,6 +11,7 @@ interface FunnelPreviewProps {
   buttonText: string;
   socialProof: string;
   questions: QualificationQuestion[];
+  sections?: FunnelPageSection[];
   theme?: FunnelTheme;
   primaryColor?: string;
   backgroundStyle?: BackgroundStyle;
@@ -27,6 +29,7 @@ export function FunnelPreview({
   buttonText,
   socialProof,
   questions,
+  sections = [],
   theme = 'dark',
   primaryColor = '#8b5cf6',
   backgroundStyle = 'solid',
@@ -53,6 +56,12 @@ export function FunnelPreview({
   }), [isDark]);
 
   const { bgColor, textColor, mutedColor, borderColor, inputBg, placeholderColor, browserBg, browserBorder } = colors;
+
+  // Filter sections by current page view
+  const pageLocation = pageView;
+  const pageSections = sections.filter(s => s.pageLocation === pageLocation && s.isVisible);
+  const aboveSections = pageSections.filter(s => s.sortOrder < 50).sort((a, b) => a.sortOrder - b.sortOrder);
+  const belowSections = pageSections.filter(s => s.sortOrder >= 50).sort((a, b) => a.sortOrder - b.sortOrder);
 
   // Background style - memoized
   const getBackgroundStyle = useCallback(() => {
@@ -171,6 +180,11 @@ export function FunnelPreview({
                 />
               )}
 
+              {/* Above sections */}
+              {aboveSections.map(s => (
+                <SectionRenderer key={s.id} section={s} />
+              ))}
+
               {/* Headline */}
               <h1
                 className="text-2xl font-semibold leading-tight"
@@ -222,6 +236,11 @@ export function FunnelPreview({
                   {socialProof}
                 </p>
               )}
+
+              {/* Below sections */}
+              {belowSections.map(s => (
+                <SectionRenderer key={s.id} section={s} />
+              ))}
             </div>
           ) : (
             /* Thank You Page Preview */
@@ -234,6 +253,11 @@ export function FunnelPreview({
                   className="h-10 w-auto mx-auto"
                 />
               )}
+
+              {/* Above sections */}
+              {aboveSections.map(s => (
+                <SectionRenderer key={s.id} section={s} />
+              ))}
 
               {/* Success Icon */}
               <div
@@ -318,6 +342,11 @@ export function FunnelPreview({
                   <p className="text-xs" style={{ color: mutedColor }}>Calendly embed will appear here</p>
                 </div>
               )}
+
+              {/* Below sections */}
+              {belowSections.map(s => (
+                <SectionRenderer key={s.id} section={s} />
+              ))}
             </div>
           )}
         </div>
