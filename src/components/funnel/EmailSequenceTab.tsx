@@ -150,10 +150,19 @@ function EmailCard({
   );
 }
 
+const GENERATING_MESSAGES = [
+  'Analyzing your lead magnet...',
+  'Crafting email subjects...',
+  'Writing personalized email copy...',
+  'Adding engagement hooks...',
+  'Finalizing your 5-email sequence...',
+];
+
 export function EmailSequenceTab({ leadMagnetId }: EmailSequenceTabProps) {
   const [sequence, setSequence] = useState<EmailSequence | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [generatingMessage, setGeneratingMessage] = useState('');
   const [activating, setActivating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -183,6 +192,14 @@ export function EmailSequenceTab({ leadMagnetId }: EmailSequenceTabProps) {
     setGenerating(true);
     setError(null);
     setSuccess(null);
+    setGeneratingMessage(GENERATING_MESSAGES[0]);
+
+    // Cycle through progress messages
+    let msgIndex = 0;
+    const msgInterval = setInterval(() => {
+      msgIndex = Math.min(msgIndex + 1, GENERATING_MESSAGES.length - 1);
+      setGeneratingMessage(GENERATING_MESSAGES[msgIndex]);
+    }, 4000);
 
     try {
       const response = await fetch('/api/email-sequence/generate', {
@@ -199,11 +216,13 @@ export function EmailSequenceTab({ leadMagnetId }: EmailSequenceTabProps) {
       const data = await response.json();
       setSequence(data.emailSequence);
       setSuccess('Email sequence generated successfully!');
-      setExpandedEmail(0); // Expand first email to show result
+      setExpandedEmail(0);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate email sequence');
     } finally {
+      clearInterval(msgInterval);
       setGenerating(false);
+      setGeneratingMessage('');
     }
   };
 
@@ -358,8 +377,19 @@ export function EmailSequenceTab({ leadMagnetId }: EmailSequenceTabProps) {
         </div>
       )}
 
+      {/* Generating overlay */}
+      {generating && (
+        <div className="text-center py-12 border-2 border-primary/30 rounded-lg bg-primary/5">
+          <Loader2 className="h-10 w-10 mx-auto text-primary animate-spin mb-4" />
+          <h4 className="font-medium mb-2">Generating Your Email Sequence</h4>
+          <p className="text-sm text-muted-foreground animate-pulse">
+            {generatingMessage}
+          </p>
+        </div>
+      )}
+
       {/* No sequence yet */}
-      {!sequence && (
+      {!sequence && !generating && (
         <div className="text-center py-12 border-2 border-dashed rounded-lg">
           <Mail className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
           <h4 className="font-medium mb-2">No Email Sequence Yet</h4>
@@ -369,21 +399,16 @@ export function EmailSequenceTab({ leadMagnetId }: EmailSequenceTabProps) {
           </p>
           <button
             onClick={handleGenerate}
-            disabled={generating}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
           >
-            {generating ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Sparkles className="h-4 w-4" />
-            )}
+            <Sparkles className="h-4 w-4" />
             Generate Email Sequence
           </button>
         </div>
       )}
 
       {/* Email cards */}
-      {sequence && sequence.emails && sequence.emails.length > 0 && (
+      {!generating && sequence && sequence.emails && sequence.emails.length > 0 && (
         <div className="space-y-3">
           {sequence.emails.map((email, index) => (
             <EmailCard
@@ -404,7 +429,7 @@ export function EmailSequenceTab({ leadMagnetId }: EmailSequenceTabProps) {
       )}
 
       {/* Action buttons */}
-      {sequence && (
+      {!generating && sequence && (
         <div className="flex items-center gap-3 pt-4 border-t">
           <button
             onClick={handleGenerate}
