@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Magnet, Library, BarChart3, Settings, Plus, LogOut, FileText, Globe, Users, ChevronDown } from 'lucide-react';
+import { Magnet, Library, BarChart3, Settings, Plus, LogOut, FileText, Globe, Users, ChevronDown, BookOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/ds';
 
@@ -23,6 +23,7 @@ const navItems = [
   { href: '/leads', label: 'Leads', icon: Users },
   { href: '/swipe-file', label: 'Swipe File', icon: FileText },
   { href: '/analytics', label: 'Analytics', icon: BarChart3 },
+  { href: '/docs', label: 'API Docs', icon: BookOpen },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
