@@ -2,10 +2,10 @@
 // POST /api/lead-magnet/ideate - Creates job, returns jobId
 
 import { NextResponse } from 'next/server';
+import { tasks } from '@trigger.dev/sdk/v3';
 import { auth } from '@/lib/auth';
 import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
 import { ApiErrors, logApiError } from '@/lib/api/errors';
-import { ideateLeadMagnet } from '@/trigger/ideate-lead-magnet';
 import type { BusinessContext, CallTranscriptInsights, CompetitorAnalysis } from '@/lib/types/lead-magnet';
 import type { IdeationJobInput, CreateJobResponse } from '@/lib/types/background-jobs';
 
@@ -106,8 +106,8 @@ export async function POST(request: Request) {
       return ApiErrors.databaseError('Failed to create job');
     }
 
-    // Trigger background task
-    const handle = await ideateLeadMagnet.trigger({
+    // Trigger background task using tasks.trigger() for proper SDK usage
+    const handle = await tasks.trigger('ideate-lead-magnet', {
       jobId: job.id,
       userId: session.user.id,
       input: jobInput,
