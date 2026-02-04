@@ -34,10 +34,18 @@ export async function createSupabaseServerClient() {
 }
 
 // Service role client for admin operations (bypasses RLS)
+// Supports both Next.js env var names and Trigger.dev env var names
 export function createSupabaseAdminClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
+
+  if (!supabaseUrl || !serviceKey) {
+    throw new Error('Missing Supabase environment variables');
+  }
+
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    supabaseUrl,
+    serviceKey,
     {
       cookies: {
         get: () => undefined,
