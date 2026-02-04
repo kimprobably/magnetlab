@@ -1,7 +1,7 @@
 import { defineConfig } from "@trigger.dev/sdk/v3";
 
 export default defineConfig({
-  project: "magnetlab",
+  project: "proj_lueymlvtfuvbroyvxzjw",
   runtime: "node",
   logLevel: "log",
   maxDuration: 300, // 5 minutes max per task
