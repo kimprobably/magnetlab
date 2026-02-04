@@ -6,7 +6,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
 import { libraryItemFromRow, type LibraryItemRow, type LibraryItemWithAsset } from '@/lib/types/library';
-import { ApiErrors, logApiError } from '@/lib/api/errors';
+import { ApiErrors, logApiError, isValidUUID } from '@/lib/api/errors';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -21,6 +21,10 @@ export async function GET(request: Request, { params }: RouteParams) {
     }
 
     const { id: libraryId } = await params;
+    if (!isValidUUID(libraryId)) {
+      return ApiErrors.validationError('Invalid library ID');
+    }
+
     const supabase = createSupabaseAdminClient();
 
     // Verify library ownership
@@ -103,6 +107,10 @@ export async function POST(request: Request, { params }: RouteParams) {
     }
 
     const { id: libraryId } = await params;
+    if (!isValidUUID(libraryId)) {
+      return ApiErrors.validationError('Invalid library ID');
+    }
+
     const body = await request.json();
     const { assetType, leadMagnetId, externalResourceId, iconOverride, sortOrder, isFeatured } = body;
 

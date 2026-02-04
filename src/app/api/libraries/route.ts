@@ -58,10 +58,9 @@ export async function POST(request: Request) {
     // Generate slug from name if not provided
     const baseSlug = requestedSlug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
     let finalSlug = baseSlug;
-    let slugSuffix = 0;
 
-    // Check for slug collision and auto-increment if needed
-    while (true) {
+    // Check for slug collision and auto-increment if needed (max 100 attempts)
+    for (let attempt = 0; attempt < 100; attempt++) {
       const { data: slugExists } = await supabase
         .from('libraries')
         .select('id')
@@ -71,8 +70,11 @@ export async function POST(request: Request) {
 
       if (!slugExists) break;
 
-      slugSuffix++;
-      finalSlug = `${baseSlug}-${slugSuffix}`;
+      finalSlug = `${baseSlug}-${attempt + 1}`;
+
+      if (attempt === 99) {
+        return ApiErrors.conflict('Unable to generate unique slug');
+      }
     }
 
     const insertData = {

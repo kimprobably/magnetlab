@@ -6,7 +6,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
 import { libraryItemFromRow, type LibraryItemRow } from '@/lib/types/library';
-import { ApiErrors, logApiError } from '@/lib/api/errors';
+import { ApiErrors, logApiError, isValidUUID } from '@/lib/api/errors';
 
 interface RouteParams {
   params: Promise<{ id: string; itemId: string }>;
@@ -21,6 +21,10 @@ export async function PUT(request: Request, { params }: RouteParams) {
     }
 
     const { id: libraryId, itemId } = await params;
+    if (!isValidUUID(libraryId) || !isValidUUID(itemId)) {
+      return ApiErrors.validationError('Invalid ID format');
+    }
+
     const body = await request.json();
     const { iconOverride, sortOrder, isFeatured } = body;
 
@@ -56,6 +60,10 @@ export async function PUT(request: Request, { params }: RouteParams) {
     if (sortOrder !== undefined) updateData.sort_order = sortOrder;
     if (isFeatured !== undefined) updateData.is_featured = isFeatured;
 
+    if (Object.keys(updateData).length === 0) {
+      return ApiErrors.validationError('No fields to update');
+    }
+
     const { data, error } = await supabase
       .from('library_items')
       .update(updateData)
@@ -84,6 +92,10 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     }
 
     const { id: libraryId, itemId } = await params;
+    if (!isValidUUID(libraryId) || !isValidUUID(itemId)) {
+      return ApiErrors.validationError('Invalid ID format');
+    }
+
     const supabase = createSupabaseAdminClient();
 
     // Verify library ownership

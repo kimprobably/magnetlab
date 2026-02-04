@@ -7,7 +7,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
 import { libraryFromRow, type LibraryRow } from '@/lib/types/library';
-import { ApiErrors, logApiError } from '@/lib/api/errors';
+import { ApiErrors, logApiError, isValidUUID } from '@/lib/api/errors';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -22,6 +22,10 @@ export async function GET(request: Request, { params }: RouteParams) {
     }
 
     const { id } = await params;
+    if (!isValidUUID(id)) {
+      return ApiErrors.validationError('Invalid library ID');
+    }
+
     const supabase = createSupabaseAdminClient();
 
     const { data, error } = await supabase
@@ -51,6 +55,10 @@ export async function PUT(request: Request, { params }: RouteParams) {
     }
 
     const { id } = await params;
+    if (!isValidUUID(id)) {
+      return ApiErrors.validationError('Invalid library ID');
+    }
+
     const body = await request.json();
     const { name, description, icon, slug, autoFeatureDays } = body;
 
@@ -91,6 +99,10 @@ export async function PUT(request: Request, { params }: RouteParams) {
       updateData.slug = slug;
     }
 
+    if (Object.keys(updateData).length === 0) {
+      return ApiErrors.validationError('No fields to update');
+    }
+
     const { data, error } = await supabase
       .from('libraries')
       .update(updateData)
@@ -119,6 +131,10 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     }
 
     const { id } = await params;
+    if (!isValidUUID(id)) {
+      return ApiErrors.validationError('Invalid library ID');
+    }
+
     const supabase = createSupabaseAdminClient();
 
     // Verify ownership

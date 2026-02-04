@@ -4,10 +4,15 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
-import { ApiErrors, logApiError } from '@/lib/api/errors';
+import { ApiErrors, logApiError, isValidUUID } from '@/lib/api/errors';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
+}
+
+interface ReorderItem {
+  id: string;
+  sortOrder: number;
 }
 
 export async function POST(request: Request, { params }: RouteParams) {
@@ -18,11 +23,25 @@ export async function POST(request: Request, { params }: RouteParams) {
     }
 
     const { id: libraryId } = await params;
+    if (!isValidUUID(libraryId)) {
+      return ApiErrors.validationError('Invalid library ID');
+    }
+
     const body = await request.json();
     const { items } = body;
 
     if (!Array.isArray(items) || items.length === 0) {
       return ApiErrors.validationError('items array is required');
+    }
+
+    // Validate each item
+    for (const item of items) {
+      if (!item.id || typeof item.id !== 'string' || !isValidUUID(item.id)) {
+        return ApiErrors.validationError('Each item must have a valid id');
+      }
+      if (typeof item.sortOrder !== 'number' || item.sortOrder < 0) {
+        return ApiErrors.validationError('Each item must have a valid sortOrder');
+      }
     }
 
     const supabase = createSupabaseAdminClient();
@@ -40,7 +59,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     }
 
     // Update each item's sort_order
-    const updates = items.map((item: { id: string; sortOrder: number }) =>
+    const updates = (items as ReorderItem[]).map((item) =>
       supabase
         .from('library_items')
         .update({ sort_order: item.sortOrder })
