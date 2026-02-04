@@ -13,8 +13,8 @@ interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
-// GET - Get single library
-export async function GET(request: Request, { params }: RouteParams) {
+// GET - Get single library with items
+export async function GET(_request: Request, { params }: RouteParams) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
@@ -39,7 +39,39 @@ export async function GET(request: Request, { params }: RouteParams) {
       return ApiErrors.notFound('Library');
     }
 
-    return NextResponse.json({ library: libraryFromRow(data as LibraryRow) });
+    // Fetch items with joined asset data
+    const { data: itemsData } = await supabase
+      .from('library_items')
+      .select(`
+        id,
+        asset_type,
+        lead_magnet_id,
+        external_resource_id,
+        icon_override,
+        sort_order,
+        is_featured,
+        lead_magnets:lead_magnet_id(id, title),
+        external_resources:external_resource_id(id, title, icon)
+      `)
+      .eq('library_id', id)
+      .order('sort_order', { ascending: true });
+
+    // Transform items for the frontend
+    const items = (itemsData || []).map((item: Record<string, unknown>) => {
+      const lm = item.lead_magnets as { id: string; title: string } | null;
+      const er = item.external_resources as { id: string; title: string; icon: string } | null;
+      return {
+        id: item.id,
+        assetType: item.asset_type,
+        assetId: lm?.id || er?.id || '',
+        assetTitle: lm?.title || er?.title || 'Unknown',
+        iconOverride: item.icon_override,
+        sortOrder: item.sort_order,
+        isFeatured: item.is_featured,
+      };
+    });
+
+    return NextResponse.json({ library: libraryFromRow(data as LibraryRow), items });
   } catch (error) {
     logApiError('libraries/get', error);
     return ApiErrors.internalError('Failed to fetch library');

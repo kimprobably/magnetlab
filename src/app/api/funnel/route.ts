@@ -1,14 +1,16 @@
 // API Route: Funnel Pages List and Create
 // GET /api/funnel?leadMagnetId=xxx - Get funnel for lead magnet
-// POST /api/funnel - Create new funnel page
+// GET /api/funnel?libraryId=xxx - Get funnel for library
+// GET /api/funnel?externalResourceId=xxx - Get funnel for external resource
+// POST /api/funnel - Create new funnel page (supports targetType: lead_magnet | library | external_resource)
 
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
-import { funnelPageFromRow, type FunnelPageRow } from '@/lib/types/funnel';
-import { ApiErrors, logApiError } from '@/lib/api/errors';
+import { funnelPageFromRow, type FunnelPageRow, type FunnelTargetType } from '@/lib/types/funnel';
+import { ApiErrors, logApiError, isValidUUID } from '@/lib/api/errors';
 
-// GET - Get funnel page for a lead magnet
+// GET - Get funnel page for a target (lead magnet, library, or external resource)
 export async function GET(request: Request) {
   try {
     const session = await auth();
@@ -18,36 +20,60 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const leadMagnetId = searchParams.get('leadMagnetId');
-
-    if (!leadMagnetId) {
-      return ApiErrors.validationError('leadMagnetId is required');
-    }
+    const libraryId = searchParams.get('libraryId');
+    const externalResourceId = searchParams.get('externalResourceId');
 
     const supabase = createSupabaseAdminClient();
+    let query = supabase.from('funnel_pages').select('*').eq('user_id', session.user.id);
 
-    // Verify lead magnet ownership
-    const { data: leadMagnet, error: lmError } = await supabase
-      .from('lead_magnets')
-      .select('id')
-      .eq('id', leadMagnetId)
-      .eq('user_id', session.user.id)
-      .single();
-
-    if (lmError || !leadMagnet) {
-      return ApiErrors.notFound('Lead magnet');
+    // Determine which target type to query
+    if (leadMagnetId) {
+      if (!isValidUUID(leadMagnetId)) {
+        return ApiErrors.validationError('Invalid leadMagnetId');
+      }
+      // Verify ownership
+      const { data: lm } = await supabase
+        .from('lead_magnets')
+        .select('id')
+        .eq('id', leadMagnetId)
+        .eq('user_id', session.user.id)
+        .single();
+      if (!lm) return ApiErrors.notFound('Lead magnet');
+      query = query.eq('lead_magnet_id', leadMagnetId);
+    } else if (libraryId) {
+      if (!isValidUUID(libraryId)) {
+        return ApiErrors.validationError('Invalid libraryId');
+      }
+      // Verify ownership
+      const { data: lib } = await supabase
+        .from('libraries')
+        .select('id')
+        .eq('id', libraryId)
+        .eq('user_id', session.user.id)
+        .single();
+      if (!lib) return ApiErrors.notFound('Library');
+      query = query.eq('library_id', libraryId);
+    } else if (externalResourceId) {
+      if (!isValidUUID(externalResourceId)) {
+        return ApiErrors.validationError('Invalid externalResourceId');
+      }
+      // Verify ownership
+      const { data: er } = await supabase
+        .from('external_resources')
+        .select('id')
+        .eq('id', externalResourceId)
+        .eq('user_id', session.user.id)
+        .single();
+      if (!er) return ApiErrors.notFound('External resource');
+      query = query.eq('external_resource_id', externalResourceId);
+    } else {
+      return ApiErrors.validationError('One of leadMagnetId, libraryId, or externalResourceId is required');
     }
 
-    // Get funnel page
-    const { data, error } = await supabase
-      .from('funnel_pages')
-      .select('*')
-      .eq('lead_magnet_id', leadMagnetId)
-      .eq('user_id', session.user.id)
-      .single();
+    const { data, error } = await query.single();
 
     if (error && error.code !== 'PGRST116') {
-      // PGRST116 = no rows returned, which is fine
-      logApiError('funnel/get', error, { userId: session.user.id, leadMagnetId });
+      logApiError('funnel/get', error, { userId: session.user.id });
       return ApiErrors.databaseError('Failed to fetch funnel page');
     }
 
@@ -62,7 +88,7 @@ export async function GET(request: Request) {
   }
 }
 
-// POST - Create a new funnel page
+// POST - Create a new funnel page (supports multiple target types)
 export async function POST(request: Request) {
   try {
     const session = await auth();
@@ -71,35 +97,90 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { leadMagnetId, slug, ...funnelData } = body;
+    const { leadMagnetId, libraryId, externalResourceId, targetType, slug, ...funnelData } = body;
 
-    if (!leadMagnetId || !slug) {
-      return ApiErrors.validationError('leadMagnetId and slug are required');
+    if (!slug) {
+      return ApiErrors.validationError('slug is required');
+    }
+
+    // Determine target type (default to lead_magnet for backwards compatibility)
+    const resolvedTargetType: FunnelTargetType = targetType || (leadMagnetId ? 'lead_magnet' : libraryId ? 'library' : 'external_resource');
+
+    // Validate target type and required IDs
+    if (resolvedTargetType === 'lead_magnet' && !leadMagnetId) {
+      return ApiErrors.validationError('leadMagnetId is required for lead_magnet target type');
+    }
+    if (resolvedTargetType === 'library' && !libraryId) {
+      return ApiErrors.validationError('libraryId is required for library target type');
+    }
+    if (resolvedTargetType === 'external_resource' && !externalResourceId) {
+      return ApiErrors.validationError('externalResourceId is required for external_resource target type');
     }
 
     const supabase = createSupabaseAdminClient();
+    let targetTitle = 'Funnel';
 
-    // Verify lead magnet ownership
-    const { data: leadMagnet, error: lmError } = await supabase
-      .from('lead_magnets')
-      .select('id, title')
-      .eq('id', leadMagnetId)
-      .eq('user_id', session.user.id)
-      .single();
+    // Verify target ownership and get title
+    if (resolvedTargetType === 'lead_magnet') {
+      if (!isValidUUID(leadMagnetId)) {
+        return ApiErrors.validationError('Invalid leadMagnetId');
+      }
+      const { data: lm, error: lmError } = await supabase
+        .from('lead_magnets')
+        .select('id, title')
+        .eq('id', leadMagnetId)
+        .eq('user_id', session.user.id)
+        .single();
+      if (lmError || !lm) return ApiErrors.notFound('Lead magnet');
+      targetTitle = lm.title;
 
-    if (lmError || !leadMagnet) {
-      return ApiErrors.notFound('Lead magnet');
-    }
+      // Check for existing funnel
+      const { data: existing } = await supabase
+        .from('funnel_pages')
+        .select('id')
+        .eq('lead_magnet_id', leadMagnetId)
+        .single();
+      if (existing) return ApiErrors.conflict('Funnel page already exists for this lead magnet');
+    } else if (resolvedTargetType === 'library') {
+      if (!isValidUUID(libraryId)) {
+        return ApiErrors.validationError('Invalid libraryId');
+      }
+      const { data: lib, error: libError } = await supabase
+        .from('libraries')
+        .select('id, name')
+        .eq('id', libraryId)
+        .eq('user_id', session.user.id)
+        .single();
+      if (libError || !lib) return ApiErrors.notFound('Library');
+      targetTitle = lib.name;
 
-    // Check if funnel already exists for this lead magnet
-    const { data: existing } = await supabase
-      .from('funnel_pages')
-      .select('id')
-      .eq('lead_magnet_id', leadMagnetId)
-      .single();
+      // Check for existing funnel
+      const { data: existing } = await supabase
+        .from('funnel_pages')
+        .select('id')
+        .eq('library_id', libraryId)
+        .single();
+      if (existing) return ApiErrors.conflict('Funnel page already exists for this library');
+    } else if (resolvedTargetType === 'external_resource') {
+      if (!isValidUUID(externalResourceId)) {
+        return ApiErrors.validationError('Invalid externalResourceId');
+      }
+      const { data: er, error: erError } = await supabase
+        .from('external_resources')
+        .select('id, title')
+        .eq('id', externalResourceId)
+        .eq('user_id', session.user.id)
+        .single();
+      if (erError || !er) return ApiErrors.notFound('External resource');
+      targetTitle = er.title;
 
-    if (existing) {
-      return ApiErrors.conflict('Funnel page already exists for this lead magnet');
+      // Check for existing funnel
+      const { data: existing } = await supabase
+        .from('funnel_pages')
+        .select('id')
+        .eq('external_resource_id', externalResourceId)
+        .single();
+      if (existing) return ApiErrors.conflict('Funnel page already exists for this external resource');
     }
 
     // Fetch user theme defaults
@@ -109,11 +190,12 @@ export async function POST(request: Request) {
       .eq('id', session.user.id)
       .single();
 
-    // Check for slug collision and auto-increment if needed
+    // Check for slug collision and auto-increment if needed (max 100 attempts)
     let finalSlug = slug;
     let slugSuffix = 0;
+    const maxAttempts = 100;
 
-    while (true) {
+    while (slugSuffix < maxAttempts) {
       const { data: slugExists } = await supabase
         .from('funnel_pages')
         .select('id')
@@ -127,12 +209,19 @@ export async function POST(request: Request) {
       finalSlug = `${slug}-${slugSuffix}`;
     }
 
+    if (slugSuffix >= maxAttempts) {
+      return ApiErrors.conflict('Unable to generate unique slug');
+    }
+
     // Create funnel page
-    const funnelInsertData = {
-      lead_magnet_id: leadMagnetId,
+    const funnelInsertData: Record<string, unknown> = {
       user_id: session.user.id,
       slug: finalSlug,
-      optin_headline: funnelData.optinHeadline || leadMagnet.title,
+      target_type: resolvedTargetType,
+      lead_magnet_id: resolvedTargetType === 'lead_magnet' ? leadMagnetId : null,
+      library_id: resolvedTargetType === 'library' ? libraryId : null,
+      external_resource_id: resolvedTargetType === 'external_resource' ? externalResourceId : null,
+      optin_headline: funnelData.optinHeadline || targetTitle,
       optin_subline: funnelData.optinSubline || null,
       optin_button_text: funnelData.optinButtonText || 'Get Free Access',
       optin_social_proof: funnelData.optinSocialProof || null,

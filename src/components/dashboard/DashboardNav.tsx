@@ -19,7 +19,7 @@ interface DashboardNavProps {
 
 const navItems = [
   { href: '/library', label: 'Library', icon: Library },
-  { href: '/pages', label: 'Pages', icon: Globe },
+  { href: '/assets', label: 'Assets', icon: Globe },
   { href: '/leads', label: 'Leads', icon: Users },
   { href: '/swipe-file', label: 'Swipe File', icon: FileText },
   { href: '/analytics', label: 'Analytics', icon: BarChart3 },

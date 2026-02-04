@@ -1,20 +1,35 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { List, X } from 'lucide-react';
+import Link from 'next/link';
+import { List, X, ArrowLeft, ChevronRight } from 'lucide-react';
 
 interface TocSection {
   id: string;
   name: string;
 }
 
+interface LibraryContext {
+  libraryName: string;
+  libraryIcon: string;
+  libraryUrl: string;
+  siblingItems?: Array<{
+    id: string;
+    title: string;
+    icon: string;
+    url: string;
+    isCurrent: boolean;
+  }>;
+}
+
 interface TableOfContentsProps {
   sections: TocSection[];
   isDark: boolean;
   primaryColor: string;
+  libraryContext?: LibraryContext;
 }
 
-export function TableOfContents({ sections, isDark, primaryColor }: TableOfContentsProps) {
+export function TableOfContents({ sections, isDark, primaryColor, libraryContext }: TableOfContentsProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -51,8 +66,82 @@ export function TableOfContents({ sections, isDark, primaryColor }: TableOfConte
     setMobileOpen(false);
   };
 
+  const libraryNav = libraryContext && (
+    <div style={{ marginBottom: '1.5rem' }}>
+      <Link
+        href={libraryContext.libraryUrl}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+          fontSize: '0.875rem',
+          color: primaryColor,
+          textDecoration: 'none',
+          marginBottom: '0.75rem',
+        }}
+      >
+        <ArrowLeft size={16} />
+        Back to {libraryContext.libraryName}
+      </Link>
+
+      {libraryContext.siblingItems && libraryContext.siblingItems.length > 1 && (
+        <>
+          <p
+            style={{
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              color: mutedColor,
+              margin: '1rem 0 0.5rem 0',
+            }}
+          >
+            In this library
+          </p>
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+            {libraryContext.siblingItems.slice(0, 5).map((item) => (
+              <li key={item.id} style={{ marginBottom: '0.25rem' }}>
+                <Link
+                  href={item.url}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.375rem 0.75rem',
+                    borderRadius: '0.375rem',
+                    fontSize: '0.875rem',
+                    lineHeight: '1.375rem',
+                    textDecoration: 'none',
+                    color: item.isCurrent ? primaryColor : mutedColor,
+                    fontWeight: item.isCurrent ? 500 : 400,
+                    backgroundColor: item.isCurrent ? `${primaryColor}15` : 'transparent',
+                  }}
+                >
+                  <span>{item.icon}</span>
+                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {item.title}
+                  </span>
+                  {item.isCurrent && <ChevronRight size={14} />}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      <div
+        style={{
+          height: '1px',
+          backgroundColor: borderColor,
+          margin: '1rem 0',
+        }}
+      />
+    </div>
+  );
+
   const tocList = (
     <nav>
+      {libraryNav}
       <p
         style={{
           fontSize: '0.75rem',

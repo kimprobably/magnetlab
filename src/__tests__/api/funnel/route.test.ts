@@ -52,7 +52,7 @@ describe('Funnel API Routes', () => {
       expect(data.error).toBe('Unauthorized');
     });
 
-    it('should return 400 if leadMagnetId is missing', async () => {
+    it('should return 400 if no target ID is provided', async () => {
       mockAuth.mockResolvedValueOnce({ user: { id: 'user-123' } });
 
       const request = new Request('http://localhost:3000/api/funnel');
@@ -60,7 +60,7 @@ describe('Funnel API Routes', () => {
       const data = await response.json();
 
       expect(response.status).toBe(400);
-      expect(data.error).toBe('leadMagnetId is required');
+      expect(data.error).toBe('One of leadMagnetId, libraryId, or externalResourceId is required');
     });
 
     it('should return 404 if lead magnet not found', async () => {
@@ -70,7 +70,8 @@ describe('Funnel API Routes', () => {
         error: { code: 'PGRST116' },
       });
 
-      const request = new Request('http://localhost:3000/api/funnel?leadMagnetId=123');
+      const validUUID = '550e8400-e29b-41d4-a716-446655440000';
+      const request = new Request(`http://localhost:3000/api/funnel?leadMagnetId=${validUUID}`);
       const response = await GET(request);
       const data = await response.json();
 
@@ -80,17 +81,21 @@ describe('Funnel API Routes', () => {
 
     it('should return funnel page if found', async () => {
       mockAuth.mockResolvedValueOnce({ user: { id: 'user-123' } });
+      const validUUID = '550e8400-e29b-41d4-a716-446655440000';
 
       // Lead magnet exists
       mockSupabaseClient.single
-        .mockResolvedValueOnce({ data: { id: 'lm-123' }, error: null })
+        .mockResolvedValueOnce({ data: { id: validUUID }, error: null })
         // Funnel page exists
         .mockResolvedValueOnce({
           data: {
             id: 'funnel-123',
-            lead_magnet_id: 'lm-123',
+            lead_magnet_id: validUUID,
             user_id: 'user-123',
             slug: 'my-funnel',
+            target_type: 'lead_magnet',
+            library_id: null,
+            external_resource_id: null,
             optin_headline: 'Get Free Access',
             optin_subline: null,
             optin_button_text: 'Get Access',
@@ -109,7 +114,7 @@ describe('Funnel API Routes', () => {
           error: null,
         });
 
-      const request = new Request('http://localhost:3000/api/funnel?leadMagnetId=lm-123');
+      const request = new Request(`http://localhost:3000/api/funnel?leadMagnetId=${validUUID}`);
       const response = await GET(request);
       const data = await response.json();
 
@@ -121,12 +126,13 @@ describe('Funnel API Routes', () => {
 
     it('should return null funnel if not found but lead magnet exists', async () => {
       mockAuth.mockResolvedValueOnce({ user: { id: 'user-123' } });
+      const validUUID = '550e8400-e29b-41d4-a716-446655440000';
 
       mockSupabaseClient.single
-        .mockResolvedValueOnce({ data: { id: 'lm-123' }, error: null })
+        .mockResolvedValueOnce({ data: { id: validUUID }, error: null })
         .mockResolvedValueOnce({ data: null, error: { code: 'PGRST116' } });
 
-      const request = new Request('http://localhost:3000/api/funnel?leadMagnetId=lm-123');
+      const request = new Request(`http://localhost:3000/api/funnel?leadMagnetId=${validUUID}`);
       const response = await GET(request);
       const data = await response.json();
 
@@ -152,20 +158,22 @@ describe('Funnel API Routes', () => {
 
     it('should return 400 if required fields are missing', async () => {
       mockAuth.mockResolvedValueOnce({ user: { id: 'user-123' } });
+      const validUUID = '550e8400-e29b-41d4-a716-446655440000';
 
       const request = new Request('http://localhost:3000/api/funnel', {
         method: 'POST',
-        body: JSON.stringify({ leadMagnetId: '123' }), // missing slug
+        body: JSON.stringify({ leadMagnetId: validUUID }), // missing slug
       });
       const response = await POST(request);
       const data = await response.json();
 
       expect(response.status).toBe(400);
-      expect(data.error).toBe('leadMagnetId and slug are required');
+      expect(data.error).toBe('slug is required');
     });
 
     it('should return 404 if lead magnet not found', async () => {
       mockAuth.mockResolvedValueOnce({ user: { id: 'user-123' } });
+      const validUUID = '550e8400-e29b-41d4-a716-446655440000';
       mockSupabaseClient.single.mockResolvedValueOnce({
         data: null,
         error: { code: 'PGRST116' },
@@ -173,7 +181,7 @@ describe('Funnel API Routes', () => {
 
       const request = new Request('http://localhost:3000/api/funnel', {
         method: 'POST',
-        body: JSON.stringify({ leadMagnetId: '123', slug: 'test' }),
+        body: JSON.stringify({ leadMagnetId: validUUID, slug: 'test' }),
       });
       const response = await POST(request);
       const data = await response.json();
@@ -184,14 +192,15 @@ describe('Funnel API Routes', () => {
 
     it('should return 409 if funnel already exists for lead magnet', async () => {
       mockAuth.mockResolvedValueOnce({ user: { id: 'user-123' } });
+      const validUUID = '550e8400-e29b-41d4-a716-446655440000';
 
       mockSupabaseClient.single
-        .mockResolvedValueOnce({ data: { id: 'lm-123', title: 'My Lead Magnet' }, error: null })
+        .mockResolvedValueOnce({ data: { id: validUUID, title: 'My Lead Magnet' }, error: null })
         .mockResolvedValueOnce({ data: { id: 'existing-funnel' }, error: null });
 
       const request = new Request('http://localhost:3000/api/funnel', {
         method: 'POST',
-        body: JSON.stringify({ leadMagnetId: 'lm-123', slug: 'test' }),
+        body: JSON.stringify({ leadMagnetId: validUUID, slug: 'test' }),
       });
       const response = await POST(request);
       const data = await response.json();
@@ -202,10 +211,11 @@ describe('Funnel API Routes', () => {
 
     it('should create funnel page successfully', async () => {
       mockAuth.mockResolvedValueOnce({ user: { id: 'user-123' } });
+      const validUUID = '550e8400-e29b-41d4-a716-446655440000';
 
       mockSupabaseClient.single
         // Lead magnet exists
-        .mockResolvedValueOnce({ data: { id: 'lm-123', title: 'My Lead Magnet' }, error: null })
+        .mockResolvedValueOnce({ data: { id: validUUID, title: 'My Lead Magnet' }, error: null })
         // No existing funnel
         .mockResolvedValueOnce({ data: null, error: { code: 'PGRST116' } })
         // User profile (no theme defaults set)
@@ -216,9 +226,12 @@ describe('Funnel API Routes', () => {
         .mockResolvedValueOnce({
           data: {
             id: 'new-funnel-123',
-            lead_magnet_id: 'lm-123',
+            lead_magnet_id: validUUID,
             user_id: 'user-123',
             slug: 'test',
+            target_type: 'lead_magnet',
+            library_id: null,
+            external_resource_id: null,
             optin_headline: 'My Lead Magnet',
             optin_subline: null,
             optin_button_text: 'Get Free Access',
@@ -240,7 +253,7 @@ describe('Funnel API Routes', () => {
       const request = new Request('http://localhost:3000/api/funnel', {
         method: 'POST',
         body: JSON.stringify({
-          leadMagnetId: 'lm-123',
+          leadMagnetId: validUUID,
           slug: 'test',
           optinHeadline: 'Custom Headline',
         }),
@@ -255,9 +268,10 @@ describe('Funnel API Routes', () => {
 
     it('should auto-increment slug if collision detected', async () => {
       mockAuth.mockResolvedValueOnce({ user: { id: 'user-123' } });
+      const validUUID = '550e8400-e29b-41d4-a716-446655440000';
 
       mockSupabaseClient.single
-        .mockResolvedValueOnce({ data: { id: 'lm-123', title: 'My Lead Magnet' }, error: null })
+        .mockResolvedValueOnce({ data: { id: validUUID, title: 'My Lead Magnet' }, error: null })
         .mockResolvedValueOnce({ data: null, error: { code: 'PGRST116' } })
         // User profile (no theme defaults set)
         .mockResolvedValueOnce({ data: null, error: { code: 'PGRST116' } })
@@ -269,8 +283,11 @@ describe('Funnel API Routes', () => {
           data: {
             id: 'new-funnel',
             slug: 'test-1',
-            lead_magnet_id: 'lm-123',
+            lead_magnet_id: validUUID,
             user_id: 'user-123',
+            target_type: 'lead_magnet',
+            library_id: null,
+            external_resource_id: null,
             optin_headline: 'Test',
             optin_subline: null,
             optin_button_text: 'Get Free Access',
@@ -291,7 +308,7 @@ describe('Funnel API Routes', () => {
 
       const request = new Request('http://localhost:3000/api/funnel', {
         method: 'POST',
-        body: JSON.stringify({ leadMagnetId: 'lm-123', slug: 'test' }),
+        body: JSON.stringify({ leadMagnetId: validUUID, slug: 'test' }),
       });
       const response = await POST(request);
       const data = await response.json();
