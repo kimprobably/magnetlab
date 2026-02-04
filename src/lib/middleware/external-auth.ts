@@ -28,9 +28,19 @@ export async function authenticateExternal(
     )
   }
 
+  // Extract method and path for signature verification
+  const method = request.method
+  const url = new URL(request.url)
+  // Get the path after /api/external (e.g., /lead-magnets/123)
+  const fullPath = url.pathname
+  const externalPrefix = '/api/external'
+  const path = fullPath.startsWith(externalPrefix)
+    ? fullPath.slice(externalPrefix.length)
+    : fullPath
+
   const body = await request.text()
 
-  if (!verifyServiceSignature(body, timestamp, signature)) {
+  if (!verifyServiceSignature(method, path, body, timestamp, signature)) {
     return NextResponse.json(
       { error: 'Invalid signature' },
       { status: 401 }

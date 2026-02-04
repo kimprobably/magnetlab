@@ -2,17 +2,32 @@ import { createHmac, timingSafeEqual } from 'crypto'
 
 const SERVICE_SECRET = process.env.GTM_SERVICE_SECRET!
 
-export function generateServiceSignature(payload: string, timestamp: string): string {
-  const data = `${timestamp}.${payload}`
+/**
+ * Generate HMAC signature for service-to-service authentication.
+ * Includes method and path for additional security.
+ */
+export function generateServiceSignature(
+  method: string,
+  path: string,
+  payload: string,
+  timestamp: string
+): string {
+  const data = `${method}.${path}.${timestamp}.${payload}`
   return createHmac('sha256', SERVICE_SECRET).update(data).digest('hex')
 }
 
+/**
+ * Verify HMAC signature from GTM service.
+ * Uses timing-safe comparison to prevent timing attacks.
+ */
 export function verifyServiceSignature(
+  method: string,
+  path: string,
   payload: string,
   timestamp: string,
   signature: string
 ): boolean {
-  const expected = generateServiceSignature(payload, timestamp)
+  const expected = generateServiceSignature(method, path, payload, timestamp)
 
   try {
     return timingSafeEqual(
