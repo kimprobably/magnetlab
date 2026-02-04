@@ -1,12 +1,13 @@
-// API Route: Generate Lead Magnet Ideas
-// POST /api/lead-magnet/ideate
+// API Route: Generate Lead Magnet Ideas (Background Job)
+// POST /api/lead-magnet/ideate - Creates job, returns jobId
 
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import { generateLeadMagnetIdeas } from '@/lib/ai/lead-magnet-generator';
 import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
 import { ApiErrors, logApiError } from '@/lib/api/errors';
+import { ideateLeadMagnet } from '@/trigger/ideate-lead-magnet';
 import type { BusinessContext, CallTranscriptInsights, CompetitorAnalysis } from '@/lib/types/lead-magnet';
+import type { IdeationJobInput, CreateJobResponse } from '@/lib/types/background-jobs';
 
 interface IdeateRequestBody extends BusinessContext {
   sources?: {
@@ -47,26 +48,85 @@ export async function POST(request: Request) {
       logApiError('lead-magnet/ideate/usage-check', err, { userId: session.user.id, note: 'RPC unavailable' });
     }
 
-    // Generate ideas using AI
-    const result = await generateLeadMagnetIdeas(context, sources);
-
-    // Save ideation result to brand_kit for future use
+    // Save business context to brand_kit
     try {
       await supabase
         .from('brand_kits')
-        .update({
-          saved_ideation_result: result,
-          ideation_generated_at: new Date().toISOString(),
-        })
-        .eq('user_id', session.user.id);
+        .upsert({
+          user_id: session.user.id,
+          business_description: context.businessDescription,
+          business_type: context.businessType,
+          credibility_markers: context.credibilityMarkers,
+          urgent_pains: context.urgentPains,
+          templates: context.templates,
+          processes: context.processes,
+          tools: context.tools,
+          frequent_questions: context.frequentQuestions,
+          results: context.results,
+          success_example: context.successExample,
+        }, { onConflict: 'user_id' });
     } catch (saveError) {
-      logApiError('lead-magnet/ideate/save', saveError, { userId: session.user.id, note: 'Non-critical' });
-      // Continue anyway - saving is not critical
+      logApiError('lead-magnet/ideate/save-brand-kit', saveError, { userId: session.user.id });
+      // Non-critical, continue
     }
 
-    return NextResponse.json(result);
+    // Create job record
+    const jobInput: IdeationJobInput = {
+      businessContext: {
+        businessDescription: context.businessDescription,
+        businessType: context.businessType,
+        credibilityMarkers: context.credibilityMarkers || [],
+        urgentPains: context.urgentPains || [],
+        templates: context.templates || [],
+        processes: context.processes || [],
+        tools: context.tools || [],
+        frequentQuestions: context.frequentQuestions || [],
+        results: context.results || [],
+        successExample: context.successExample,
+      },
+      sources: sources ? {
+        callTranscriptInsights: sources.callTranscriptInsights,
+        competitorAnalysis: sources.competitorAnalysis,
+      } : undefined,
+    };
+
+    const { data: job, error: jobError } = await supabase
+      .from('background_jobs')
+      .insert({
+        user_id: session.user.id,
+        job_type: 'ideation',
+        status: 'pending',
+        input: jobInput,
+      })
+      .select('id')
+      .single();
+
+    if (jobError || !job) {
+      logApiError('lead-magnet/ideate/create-job', jobError, { userId: session.user.id });
+      return ApiErrors.databaseError('Failed to create job');
+    }
+
+    // Trigger background task
+    const handle = await ideateLeadMagnet.trigger({
+      jobId: job.id,
+      userId: session.user.id,
+      input: jobInput,
+    });
+
+    // Update job with trigger task ID
+    await supabase
+      .from('background_jobs')
+      .update({ trigger_task_id: handle.id })
+      .eq('id', job.id);
+
+    const response: CreateJobResponse = {
+      jobId: job.id,
+      status: 'pending',
+    };
+
+    return NextResponse.json(response);
   } catch (error) {
     logApiError('lead-magnet/ideate', error);
-    return ApiErrors.aiError('Failed to generate ideas');
+    return ApiErrors.internalError('Failed to start ideation');
   }
 }
