@@ -48,7 +48,7 @@ export function WizardContainer() {
   const [savedIdeation, setSavedIdeation] = useState<IdeationResult | null>(null);
   const [ideationGeneratedAt, setIdeationGeneratedAt] = useState<string | null>(null);
 
-  const { startPolling, status: jobStatus, isLoading: isJobLoading } = useBackgroundJob<IdeationResult>({
+  const { startPolling, isLoading: isJobLoading } = useBackgroundJob<IdeationResult>({
     pollInterval: 2000,
     timeout: 180000, // 3 minutes
     onComplete: (ideationResult) => {

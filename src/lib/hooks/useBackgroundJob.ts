@@ -34,7 +34,6 @@ export function useBackgroundJob<TResult = unknown>(
     onError,
   } = options;
 
-  const [jobId, setJobId] = useState<string | null>(null);
   const [status, setStatus] = useState<JobStatus | null>(null);
   const [result, setResult] = useState<TResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -90,7 +89,6 @@ export function useBackgroundJob<TResult = unknown>(
 
   const startPolling = useCallback((id: string) => {
     // Reset state
-    setJobId(id);
     setStatus('pending');
     setResult(null);
     setError(null);
