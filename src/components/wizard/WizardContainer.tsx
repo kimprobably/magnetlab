@@ -11,6 +11,7 @@ import { PostStep } from './steps/PostStep';
 import { PublishStep } from './steps/PublishStep';
 import { GeneratingScreen } from './GeneratingScreen';
 import { WizardProgress } from './WizardProgress';
+import { useBackgroundJob } from '@/lib/hooks/useBackgroundJob';
 import type {
   WizardState,
   BusinessContext,
@@ -46,6 +47,24 @@ export function WizardContainer() {
   const [loadingBrandKit, setLoadingBrandKit] = useState(true);
   const [savedIdeation, setSavedIdeation] = useState<IdeationResult | null>(null);
   const [ideationGeneratedAt, setIdeationGeneratedAt] = useState<string | null>(null);
+
+  const { startPolling, status: jobStatus, isLoading: isJobLoading } = useBackgroundJob<IdeationResult>({
+    pollInterval: 2000,
+    timeout: 180000, // 3 minutes
+    onComplete: (ideationResult) => {
+      setState((prev) => ({
+        ...prev,
+        ideationResult,
+        currentStep: 2,
+      }));
+      setGenerating('idle');
+    },
+    onError: (errorMessage) => {
+      setError(errorMessage);
+      setState((prev) => ({ ...prev, currentStep: 1 }));
+      setGenerating('idle');
+    },
+  });
 
   // Load saved brand kit and ideation on mount
   useEffect(() => {
@@ -106,17 +125,6 @@ export function WizardContainer() {
     }
 
     try {
-      // Save business context to brand_kit
-      const brandKitResponse = await fetch('/api/brand-kit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(context),
-      });
-
-      if (!brandKitResponse.ok) {
-        console.warn('Failed to save brand kit, continuing anyway');
-      }
-
       // Build request body with optional sources
       const requestBody: Record<string, unknown> = { ...context };
       if (sources) {
@@ -126,7 +134,7 @@ export function WizardContainer() {
         };
       }
 
-      // Generate lead magnet ideas
+      // Trigger background job
       const response = await fetch('/api/lead-magnet/ideate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -134,35 +142,33 @@ export function WizardContainer() {
       });
 
       if (!response.ok) {
-        // Handle both JSON and non-JSON error responses
         const contentType = response.headers.get('content-type');
         if (contentType && contentType.includes('application/json')) {
           const data = await response.json();
-          throw new Error(data.error || 'Failed to generate ideas');
+          throw new Error(data.error || 'Failed to start ideation');
         } else {
           const text = await response.text();
-          console.error('Non-JSON error response:', text);
           throw new Error(`Server error (${response.status}): ${text.substring(0, 100)}`);
         }
       }
 
-      const ideationResult: IdeationResult = await response.json();
+      const { jobId } = await response.json();
 
+      // Update state with context (even though ideas aren't ready yet)
       setState((prev) => ({
         ...prev,
         brandKit: context,
-        ideationResult,
-        currentStep: 2,
       }));
+
+      // Start polling for results
+      startPolling(jobId);
     } catch (err) {
       console.error('Context submit error:', err);
       setError(err instanceof Error ? err.message : 'An error occurred');
-      // Go back to step 1 on error
       setState((prev) => ({ ...prev, currentStep: 1 }));
-    } finally {
       setGenerating('idle');
     }
-  }, []);
+  }, [startPolling]);
 
   const handleConceptSelect = useCallback((index: number) => {
     setState((prev) => ({
@@ -349,13 +355,13 @@ export function WizardContainer() {
     );
   }
 
-  // Show generating screen when generating ideas
-  if (generating === 'ideas') {
+  // Show generating screen when generating ideas or polling for job results
+  if (generating === 'ideas' || isJobLoading) {
     return (
       <div className="min-h-screen bg-background">
         <WizardProgress currentStep={1} />
         <div className="container mx-auto max-w-4xl px-4 py-8">
-          <GeneratingScreen />
+          <GeneratingScreen phase={generating === 'idle' && isJobLoading ? 'ideas' : generating} />
         </div>
       </div>
     );
