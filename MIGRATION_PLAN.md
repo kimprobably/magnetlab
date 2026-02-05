@@ -2,7 +2,7 @@
 
 > **For**: VA executing via Claude Code
 > **Source**: `/Users/timlife/Downloads/Copy of Lead Magnets - Sheet1.csv`
-> **Target**: MagnetLab API at `http://localhost:3000`
+> **Target**: MagnetLab live API at `https://www.magnetlab.app`
 > **Learning goal**: VA gets hands-on with REST APIs using curl + Claude Code
 
 ---
@@ -18,18 +18,19 @@
 ## How the API Auth Works
 
 MagnetLab API uses session cookies. You need to:
-1. Start the dev server
-2. Log in as Tim in the browser
-3. Copy the session cookie
-4. Use it in every curl request
+1. Log in as Tim at `https://www.magnetlab.app` in a browser
+2. Copy the session cookie
+3. Use it in every curl/API request
 
 ---
 
 ## Phase 0: Setup (One-Time)
 
-### Step 0.0 — Clone the repo and install
+### Step 0.1 — Clone the repo (for writing scripts)
 
 **Prerequisites**: Node.js 22+, npm 10+, Git
+
+Tim will add you as a collaborator on the GitHub repo. Accept the invite, then:
 
 ```bash
 # 1. Clone the repo
@@ -40,62 +41,23 @@ cd magnetlab
 npm install
 ```
 
-### Step 0.0.1 — Set up environment variables
-
-Tim will provide the `.env.local` file (it's gitignored and contains secrets). Place it in the repo root:
-
-```
-magnetlab/
-├── .env.local    ← Tim provides this
-├── package.json
-├── ...
-```
-
-The file contains these keys (don't commit this file):
-- `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY`
-- `NEXTAUTH_SECRET` / `NEXTAUTH_URL`
-- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`
-- `ANTHROPIC_API_KEY`
-- `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` / `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
-- `NOTION_CLIENT_ID` / `NOTION_CLIENT_SECRET`
-- `RESEND_API_KEY`
-- `TRIGGER_SECRET_KEY`
-- `GTM_SYSTEM_WEBHOOK_URL` / `GTM_SYSTEM_WEBHOOK_SECRET` (optional)
-
-Ask Tim for this file before proceeding.
-
-### Step 0.0.2 — Verify the build works
-
-```bash
-# Make sure everything compiles
-npm run build
-```
-
-If the build succeeds, you're good to go. If it fails, check that `.env.local` is in place and Node version is 22+.
-
-### Step 0.1 — Start the dev server
-
-```bash
-npm run dev
-```
-
-Keep it running in the background. All API calls go to `http://localhost:3000`.
+You need the repo to write and run migration scripts. All API calls go to the **live site** at `https://www.magnetlab.app` — you do NOT need to run the dev server locally.
 
 ### Step 0.2 — Get the session cookie
 
-1. Open `http://localhost:3000` in a browser
-2. Log in as Tim (Google OAuth)
-3. Open browser DevTools → Application → Cookies
+1. Open `https://www.magnetlab.app` in a browser
+2. Log in as Tim (Google OAuth — Tim will share credentials or do this step for you)
+3. Open browser DevTools → Application → Cookies → `www.magnetlab.app`
 4. Copy the value of `authjs.session-token`
 5. Save it — you'll use it in every curl command
 
 ```bash
 # Test the cookie works:
-curl -s http://localhost:3000/api/lead-magnet?limit=1 \
+curl -s https://www.magnetlab.app/api/lead-magnet?limit=1 \
   -H "Cookie: authjs.session-token=YOUR_TOKEN_HERE" | jq .
 ```
 
-You should see a JSON response with `leadMagnets` array. If you get a 401, the cookie is wrong or expired.
+You should see a JSON response with `leadMagnets` array. If you get a 401, the cookie is wrong or expired — log in again and grab a fresh one.
 
 ### Step 0.3 — Store the cookie for reuse
 
@@ -129,7 +91,7 @@ POST /api/lead-magnet
 ```
 
 ```bash
-curl -s -X POST http://localhost:3000/api/lead-magnet \
+curl -s -X POST https://www.magnetlab.app/api/lead-magnet \
   -H "Cookie: authjs.session-token=YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -165,7 +127,7 @@ POST /api/funnel
 ```
 
 ```bash
-curl -s -X POST http://localhost:3000/api/funnel \
+curl -s -X POST https://www.magnetlab.app/api/funnel \
   -H "Cookie: authjs.session-token=YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -191,7 +153,7 @@ POST /api/funnel/{funnel_id}/publish
 ```
 
 ```bash
-curl -s -X POST http://localhost:3000/api/funnel/FUNNEL_ID/publish \
+curl -s -X POST https://www.magnetlab.app/api/funnel/FUNNEL_ID/publish \
   -H "Cookie: authjs.session-token=YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"publish": true}'
@@ -205,7 +167,7 @@ After all 19 funnels are created, create ONE shared qualification form and assig
 
 ```bash
 # Step 1: Create the shared form
-curl -s -X POST http://localhost:3000/api/qualification-forms \
+curl -s -X POST https://www.magnetlab.app/api/qualification-forms \
   -H "Cookie: authjs.session-token=YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name": "Standard Lead Qualification"}'
@@ -215,7 +177,7 @@ curl -s -X POST http://localhost:3000/api/qualification-forms \
 
 ```bash
 # Step 2: Add questions to the form
-curl -s -X POST http://localhost:3000/api/qualification-forms/FORM_ID/questions \
+curl -s -X POST https://www.magnetlab.app/api/qualification-forms/FORM_ID/questions \
   -H "Cookie: authjs.session-token=YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -231,7 +193,7 @@ curl -s -X POST http://localhost:3000/api/qualification-forms/FORM_ID/questions 
 
 ```bash
 # Step 3: Assign the form to each funnel
-curl -s -X PUT http://localhost:3000/api/funnel/FUNNEL_ID \
+curl -s -X PUT https://www.magnetlab.app/api/funnel/FUNNEL_ID \
   -H "Cookie: authjs.session-token=YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"qualificationFormId": "FORM_ID"}'
@@ -243,7 +205,7 @@ All 19 funnels will now share the same set of questions. Edit once, applies ever
 
 ### Automation: Script All 19
 
-> **Claude Code prompt**: "Read the CSV at `/Users/timlife/Downloads/Copy of Lead Magnets - Sheet1.csv` and write a script at `scripts/migrate-via-api.ts` that for each row: (1) calls POST /api/lead-magnet to create the lead magnet, (2) calls POST /api/funnel to create the funnel page, (3) calls POST /api/funnel/{id}/publish to publish it. Use the session cookie stored in an env var MIGRATION_SESSION_TOKEN. Log a mapping of CSV row → lead_magnet_id, funnel_id, slug, publicUrl. Add a 500ms delay between rows. Include a --dry-run flag that logs what would be created without actually calling the API. Read MIGRATION_PLAN.md for the exact curl shapes and field mappings."
+> **Claude Code prompt**: "Read the CSV at `data/lead-magnets.csv` and write a script at `scripts/migrate-via-api.ts` that for each row: (1) calls POST /api/lead-magnet to create the lead magnet, (2) calls POST /api/funnel to create the funnel page, (3) calls POST /api/funnel/{id}/publish to publish it. The base URL is https://www.magnetlab.app. Use the session cookie stored in an env var MIGRATION_SESSION_TOKEN. Log a mapping of CSV row → lead_magnet_id, funnel_id, slug, publicUrl. Add a 500ms delay between rows. Include a --dry-run flag that logs what would be created without actually calling the API. Read MIGRATION_PLAN.md for the exact curl shapes and field mappings."
 
 ### CSV Field → API Field Mapping
 
@@ -300,7 +262,7 @@ PUT /api/lead-magnet/{id}/content
 ```
 
 ```bash
-curl -s -X PUT http://localhost:3000/api/lead-magnet/LEAD_MAGNET_ID/content \
+curl -s -X PUT https://www.magnetlab.app/api/lead-magnet/LEAD_MAGNET_ID/content \
   -H "Cookie: authjs.session-token=YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -427,7 +389,7 @@ Open 3-4 pages in a browser and verify:
 If any content looks wrong, the VA can re-scrape and re-push:
 ```bash
 # Re-push content for a specific lead magnet:
-curl -s -X PUT http://localhost:3000/api/lead-magnet/THE_ID/content \
+curl -s -X PUT https://www.magnetlab.app/api/lead-magnet/THE_ID/content \
   -H "Cookie: authjs.session-token=YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"polishedContent": { ...fixed content... }}'
@@ -439,11 +401,10 @@ curl -s -X PUT http://localhost:3000/api/lead-magnet/THE_ID/content \
 
 **Setup:**
 ```
-Step 0: Open Claude Code in /Users/timlife/Documents/claude code/magnetlab
-Step 1: "Run npm run dev in background"
-Step 2: "I need to get my session cookie — open http://localhost:3000 in browser,
-         log in, copy authjs.session-token cookie value"
-Step 3: "Test the API: curl http://localhost:3000/api/lead-magnet?limit=1
+Step 0: Clone the repo: git clone https://github.com/kimprobably/magnetlab.git && cd magnetlab && npm install
+Step 1: Open Claude Code in the magnetlab directory
+Step 2: Get the session cookie from https://www.magnetlab.app (log in → DevTools → Cookies → copy authjs.session-token)
+Step 3: "Test the API: curl https://www.magnetlab.app/api/lead-magnet?limit=1
          with this session cookie: [PASTE COOKIE]"
 ```
 
@@ -505,7 +466,7 @@ If something goes wrong, delete via the API:
 
 ```bash
 # Delete a single lead magnet (cascades to funnel, leads, etc.):
-curl -s -X DELETE http://localhost:3000/api/lead-magnet/THE_ID \
+curl -s -X DELETE https://www.magnetlab.app/api/lead-magnet/THE_ID \
   -H "Cookie: authjs.session-token=YOUR_TOKEN"
 
 # Or delete all imported ones using the mapping file IDs
@@ -515,7 +476,8 @@ curl -s -X DELETE http://localhost:3000/api/lead-magnet/THE_ID \
 
 ## Notes for Tim
 
-- **Session cookie expiry**: The cookie may expire during the migration. If the VA starts getting 401s, just log in again and grab a fresh cookie.
+- **VA repo access**: Add the VA's GitHub username as a collaborator at `github.com/kimprobably/magnetlab` → Settings → Collaborators → Add people. She does NOT need `.env.local` since all API calls go to the live site.
+- **Session cookie expiry**: The cookie may expire during the migration. If the VA starts getting 401s, just log in again at `https://www.magnetlab.app` and grab a fresh cookie.
 - **Usage limits**: The API checks plan limits on create. If Tim is on free tier, the 19 creates may hit the limit. Either upgrade first or have the VA tell Claude Code to check what plan Tim is on.
 - **Deduplication**: Rows #8 and #17 in the CSV point to the same Notion URL. They'll be separate lead magnets with the same content — intentional.
 - **Libraries vs Lead Magnets**: The "7-Figure Agency Sales System Library" is a collection. Currently imported as a single lead magnet. If you want it as a proper MagnetLab `library` entity, tell the VA to use `POST /api/funnel` with `targetType: 'library'` instead.
