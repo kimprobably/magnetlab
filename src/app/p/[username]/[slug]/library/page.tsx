@@ -59,8 +59,6 @@ interface LibraryItemRow {
   external_resources: { id: string; title: string; url: string; icon: string } | null;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type SupabaseLibraryItemRow = any;
 
 export default async function PublicLibraryPage({ params, searchParams }: PageProps) {
   const { username, slug } = await params;
@@ -126,8 +124,8 @@ export default async function PublicLibraryPage({ params, searchParams }: PagePr
   cutoffDate.setDate(cutoffDate.getDate() - (library.auto_feature_days || 14));
 
   // Transform items for display
-  const items = ((itemRows || []) as SupabaseLibraryItemRow[])
-    .map((row: LibraryItemRow) => {
+  const items = ((itemRows || []) as unknown as LibraryItemRow[])
+    .map((row) => {
       const addedAt = new Date(row.added_at);
       const isNew = addedAt > cutoffDate;
 

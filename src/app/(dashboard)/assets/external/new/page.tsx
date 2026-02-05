@@ -19,7 +19,6 @@ export default function NewExternalResourcePage() {
   const router = useRouter();
   const [title, setTitle] = useState('');
   const [url, setUrl] = useState('');
-  const [description, setDescription] = useState('');
   const [icon, setIcon] = useState('🔗');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +49,6 @@ export default function NewExternalResourcePage() {
         body: JSON.stringify({
           title: title.trim(),
           url: url.trim(),
-          description: description.trim() || null,
           icon,
         }),
       });
@@ -103,21 +101,6 @@ export default function NewExternalResourcePage() {
             onChange={(e) => setUrl(e.target.value)}
             placeholder="https://..."
             className="w-full px-3 py-2 border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
-            disabled={isSubmitting}
-          />
-        </div>
-
-        <div>
-          <label htmlFor="description" className="block text-sm font-medium mb-2">
-            Description
-          </label>
-          <textarea
-            id="description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="A brief description of this resource..."
-            rows={3}
-            className="w-full px-3 py-2 border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary resize-none"
             disabled={isSubmitting}
           />
         </div>

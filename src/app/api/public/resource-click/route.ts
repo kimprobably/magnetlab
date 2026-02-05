@@ -8,7 +8,7 @@ import { logApiError, isValidUUID } from '@/lib/api/errors';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { resourceId, funnelPageId, leadId } = body;
+    const { resourceId, funnelPageId } = body;
 
     if (!resourceId || !isValidUUID(resourceId)) {
       return NextResponse.json({ error: 'Invalid resourceId' }, { status: 400 });
