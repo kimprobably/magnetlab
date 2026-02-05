@@ -1,7 +1,14 @@
 # Lead Magnet Migration Plan (API-Driven)
 
+<!-- LLM CONTEXT: This document is the primary instruction set for a migration task.
+     When asked to "run the migration" or "follow the migration plan", execute the
+     phases in order. The CSV source data is at data/lead-magnets.csv in this repo.
+     All API calls target the LIVE site at https://www.magnetlab.app (not localhost).
+     Auth is via session cookie passed as -H "Cookie: authjs.session-token=VALUE".
+     The CLAUDE.md in this repo has full architecture context. -->
+
 > **For**: VA executing via Claude Code
-> **Source**: `/Users/timlife/Downloads/Copy of Lead Magnets - Sheet1.csv`
+> **Source**: `data/lead-magnets.csv` (in this repo)
 > **Target**: MagnetLab live API at `https://www.magnetlab.app`
 > **Learning goal**: VA gets hands-on with REST APIs using curl + Claude Code
 
@@ -410,7 +417,7 @@ Step 3: "Test the API: curl https://www.magnetlab.app/api/lead-magnet?limit=1
 
 **Phase 1 — Create records:**
 ```
-Step 4: "Read the CSV at /Users/timlife/Downloads/Copy of Lead Magnets - Sheet1.csv
+Step 4: "Read the CSV at data/lead-magnets.csv
          and MIGRATION_PLAN.md. Write scripts/migrate-via-api.ts that creates all 19
          lead magnets and funnel pages using the REST API. Use the session cookie I gave
          you. Include --dry-run mode. Follow the field mapping in MIGRATION_PLAN.md."
