@@ -77,14 +77,25 @@ export default async function FunnelBuilderPage({ params }: PageProps) {
     ? funnelPageFromRow(funnelData as FunnelPageRow)
     : null;
 
-  // Fetch questions if funnel exists - use admin client to bypass RLS
+  // Fetch questions if funnel exists - form-aware, use admin client to bypass RLS
   let existingQuestions: ReturnType<typeof qualificationQuestionFromRow>[] = [];
   if (existingFunnel) {
-    const { data: questionsData } = await adminClient
-      .from('qualification_questions')
-      .select('*')
-      .eq('funnel_page_id', existingFunnel.id)
-      .order('question_order', { ascending: true });
+    let questionsData;
+    if (existingFunnel.qualificationFormId) {
+      const { data } = await adminClient
+        .from('qualification_questions')
+        .select('*')
+        .eq('form_id', existingFunnel.qualificationFormId)
+        .order('question_order', { ascending: true });
+      questionsData = data;
+    } else {
+      const { data } = await adminClient
+        .from('qualification_questions')
+        .select('*')
+        .eq('funnel_page_id', existingFunnel.id)
+        .order('question_order', { ascending: true });
+      questionsData = data;
+    }
 
     if (questionsData) {
       existingQuestions = (questionsData as QualificationQuestionRow[]).map(

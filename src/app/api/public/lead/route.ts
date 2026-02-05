@@ -10,6 +10,7 @@ import { triggerEmailSequenceIfActive } from '@/lib/services/email-sequence-trig
 import { leadCaptureSchema, leadQualificationSchema, validateBody } from '@/lib/validations/api';
 import { logApiError } from '@/lib/api/errors';
 import { fireGtmLeadCreatedWebhook, fireGtmLeadQualifiedWebhook } from '@/lib/webhooks/gtm-system';
+import { resolveFullQuestionsForFunnel } from '@/lib/services/qualification';
 
 // Rate limiting configuration
 // Uses database-based checking for serverless compatibility
@@ -208,12 +209,19 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'Lead not found', code: 'NOT_FOUND' }, { status: 404 });
     }
 
-    // Get questions with full data for qualification logic
-    const { data: questions } = await supabase
-      .from('qualification_questions')
-      .select('id, question_text, answer_type, qualifying_answer, is_qualifying, is_required')
-      .eq('funnel_page_id', lead.funnel_page_id)
-      .order('question_order', { ascending: true });
+    // Get funnel to check for shared form
+    const { data: funnelForForm } = await supabase
+      .from('funnel_pages')
+      .select('qualification_form_id')
+      .eq('id', lead.funnel_page_id)
+      .single();
+
+    // Get questions with full data for qualification logic (form-aware)
+    const { questions } = await resolveFullQuestionsForFunnel(
+      supabase,
+      lead.funnel_page_id,
+      funnelForForm?.qualification_form_id || null
+    );
 
     // Validate answers if there are questions
     if (questions && questions.length > 0) {

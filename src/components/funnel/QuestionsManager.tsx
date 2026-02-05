@@ -7,6 +7,7 @@ import { SURVEY_TEMPLATE_QUESTIONS } from '@/lib/constants/survey-templates';
 
 interface QuestionsManagerProps {
   funnelId: string | null;
+  formId?: string | null;
   questions: QualificationQuestion[];
   setQuestions: (questions: QualificationQuestion[]) => void;
   onNeedsSave: () => void;
@@ -21,10 +22,17 @@ const ANSWER_TYPE_LABELS: Record<AnswerType, string> = {
 
 export function QuestionsManager({
   funnelId,
+  formId,
   questions,
   setQuestions,
   onNeedsSave,
 }: QuestionsManagerProps) {
+  // Determine API base path: form-based or legacy funnel-based
+  const apiBase = formId
+    ? `/api/qualification-forms/${formId}/questions`
+    : funnelId
+      ? `/api/funnel/${funnelId}/questions`
+      : null;
   const [newQuestion, setNewQuestion] = useState('');
   const [newAnswerType, setNewAnswerType] = useState<AnswerType>('yes_no');
   const [newQualifyingAnswer, setNewQualifyingAnswer] = useState<string>('yes');
@@ -55,7 +63,7 @@ export function QuestionsManager({
   const handleAddQuestion = async () => {
     if (!newQuestion.trim()) return;
 
-    if (!funnelId) {
+    if (!apiBase) {
       onNeedsSave();
       setError('Please save the funnel first before adding questions.');
       return;
@@ -85,7 +93,7 @@ export function QuestionsManager({
         }
       }
 
-      const response = await fetch(`/api/funnel/${funnelId}/questions`, {
+      const response = await fetch(apiBase, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -115,10 +123,10 @@ export function QuestionsManager({
   };
 
   const handleUpdateQuestion = async (questionId: string, updates: Record<string, unknown>) => {
-    if (!funnelId) return;
+    if (!apiBase) return;
 
     try {
-      const response = await fetch(`/api/funnel/${funnelId}/questions/${questionId}`, {
+      const response = await fetch(`${apiBase}/${questionId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
@@ -136,10 +144,10 @@ export function QuestionsManager({
   };
 
   const handleDeleteQuestion = async (questionId: string) => {
-    if (!funnelId) return;
+    if (!apiBase) return;
 
     try {
-      const response = await fetch(`/api/funnel/${funnelId}/questions/${questionId}`, {
+      const response = await fetch(`${apiBase}/${questionId}`, {
         method: 'DELETE',
       });
 
@@ -154,7 +162,7 @@ export function QuestionsManager({
   };
 
   const handleLoadTemplate = async () => {
-    if (!funnelId) {
+    if (!apiBase) {
       onNeedsSave();
       setError('Please save the funnel first before loading a template.');
       return;
@@ -167,7 +175,7 @@ export function QuestionsManager({
       const newQuestions: QualificationQuestion[] = [];
       for (let i = 0; i < SURVEY_TEMPLATE_QUESTIONS.length; i++) {
         const tq = SURVEY_TEMPLATE_QUESTIONS[i];
-        const response = await fetch(`/api/funnel/${funnelId}/questions`, {
+        const response = await fetch(apiBase, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -227,7 +235,7 @@ export function QuestionsManager({
   };
 
   const handleDrop = async (targetIndex: number) => {
-    if (draggedIndex === null || draggedIndex === targetIndex || !funnelId) {
+    if (draggedIndex === null || draggedIndex === targetIndex || !apiBase) {
       handleDragEnd();
       return;
     }
@@ -239,7 +247,7 @@ export function QuestionsManager({
     handleDragEnd();
 
     try {
-      const response = await fetch(`/api/funnel/${funnelId}/questions`, {
+      const response = await fetch(apiBase, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -294,6 +302,14 @@ export function QuestionsManager({
           </button>
         )}
       </div>
+
+      {formId && (
+        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+          <p className="text-sm text-blue-800 dark:text-blue-200">
+            These questions come from a shared form. Edits here will apply to all funnels using this form.
+          </p>
+        </div>
+      )}
 
       {error && (
         <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">

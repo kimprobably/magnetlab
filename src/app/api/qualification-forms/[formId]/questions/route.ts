@@ -1,5 +1,5 @@
-// API Route: Qualification Questions
-// GET, POST, PATCH /api/funnel/[id]/questions
+// API Route: Form Questions
+// GET, POST, PATCH /api/qualification-forms/[formId]/questions
 
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
@@ -10,15 +10,14 @@ import {
   type AnswerType,
 } from '@/lib/types/funnel';
 import { ApiErrors, logApiError } from '@/lib/api/errors';
-import { resolveQuestionsForFunnel } from '@/lib/services/qualification';
 
 const VALID_ANSWER_TYPES: AnswerType[] = ['yes_no', 'text', 'textarea', 'multiple_choice'];
 
 interface RouteParams {
-  params: Promise<{ id: string }>;
+  params: Promise<{ formId: string }>;
 }
 
-// GET - List all questions for a funnel
+// GET - List all questions for a form
 export async function GET(request: Request, { params }: RouteParams) {
   try {
     const session = await auth();
@@ -26,41 +25,41 @@ export async function GET(request: Request, { params }: RouteParams) {
       return ApiErrors.unauthorized();
     }
 
-    const { id } = await params;
+    const { formId } = await params;
     const supabase = createSupabaseAdminClient();
 
-    // Verify funnel ownership and get form reference
-    const { data: funnel, error: funnelError } = await supabase
-      .from('funnel_pages')
-      .select('id, qualification_form_id')
-      .eq('id', id)
+    // Verify form ownership
+    const { data: form, error: formError } = await supabase
+      .from('qualification_forms')
+      .select('id')
+      .eq('id', formId)
       .eq('user_id', session.user.id)
       .single();
 
-    if (funnelError || !funnel) {
-      return ApiErrors.notFound('Funnel page');
+    if (formError || !form) {
+      return ApiErrors.notFound('Qualification form');
     }
 
-    // Resolve questions: form-based or legacy funnel-based
-    const { questions, error } = await resolveQuestionsForFunnel(
-      supabase,
-      id,
-      funnel.qualification_form_id
-    );
+    const { data, error } = await supabase
+      .from('qualification_questions')
+      .select('*')
+      .eq('form_id', formId)
+      .order('question_order', { ascending: true });
 
     if (error) {
-      logApiError('funnel/questions/list', error, { funnelId: id });
+      logApiError('qualification-forms/questions/list', error, { formId });
       return ApiErrors.databaseError('Failed to fetch questions');
     }
 
+    const questions = (data as QualificationQuestionRow[]).map(qualificationQuestionFromRow);
     return NextResponse.json({ questions });
   } catch (error) {
-    logApiError('funnel/questions/list', error);
+    logApiError('qualification-forms/questions/list', error);
     return ApiErrors.internalError('Failed to fetch questions');
   }
 }
 
-// POST - Create a new question
+// POST - Create a new question on a form
 export async function POST(request: Request, { params }: RouteParams) {
   try {
     const session = await auth();
@@ -68,11 +67,10 @@ export async function POST(request: Request, { params }: RouteParams) {
       return ApiErrors.unauthorized();
     }
 
-    const { id } = await params;
+    const { formId } = await params;
     const body = await request.json();
     const supabase = createSupabaseAdminClient();
 
-    // Validate required fields
     if (!body.questionText) {
       return ApiErrors.validationError('questionText is required');
     }
@@ -82,14 +80,12 @@ export async function POST(request: Request, { params }: RouteParams) {
       return ApiErrors.validationError('answerType must be one of: yes_no, text, textarea, multiple_choice');
     }
 
-    // Validate options for multiple_choice
     if (answerType === 'multiple_choice') {
       if (!body.options || !Array.isArray(body.options) || body.options.length < 2) {
         return ApiErrors.validationError('multiple_choice questions require at least 2 options');
       }
     }
 
-    // Determine qualifying answer
     const isQualifying = body.isQualifying ?? (answerType === 'yes_no');
     let qualifyingAnswer = null;
 
@@ -107,34 +103,34 @@ export async function POST(request: Request, { params }: RouteParams) {
       }
     }
 
-    // Verify funnel ownership
-    const { data: funnel, error: funnelError } = await supabase
-      .from('funnel_pages')
+    // Verify form ownership
+    const { data: form, error: formError } = await supabase
+      .from('qualification_forms')
       .select('id')
-      .eq('id', id)
+      .eq('id', formId)
       .eq('user_id', session.user.id)
       .single();
 
-    if (funnelError || !funnel) {
-      return ApiErrors.notFound('Funnel page');
+    if (formError || !form) {
+      return ApiErrors.notFound('Qualification form');
     }
 
-    // Get max order for this funnel
+    // Get max order for this form
     const { data: maxOrderResult } = await supabase
       .from('qualification_questions')
       .select('question_order')
-      .eq('funnel_page_id', id)
+      .eq('form_id', formId)
       .order('question_order', { ascending: false })
       .limit(1)
       .single();
 
     const nextOrder = body.questionOrder ?? ((maxOrderResult?.question_order ?? -1) + 1);
 
-    // Create question
     const { data, error } = await supabase
       .from('qualification_questions')
       .insert({
-        funnel_page_id: id,
+        form_id: formId,
+        funnel_page_id: null,
         question_text: body.questionText,
         question_order: nextOrder,
         answer_type: answerType,
@@ -148,7 +144,7 @@ export async function POST(request: Request, { params }: RouteParams) {
       .single();
 
     if (error) {
-      logApiError('funnel/questions/create', error, { funnelId: id });
+      logApiError('qualification-forms/questions/create', error, { formId });
       return ApiErrors.databaseError('Failed to create question');
     }
 
@@ -157,7 +153,7 @@ export async function POST(request: Request, { params }: RouteParams) {
       { status: 201 }
     );
   } catch (error) {
-    logApiError('funnel/questions/create', error);
+    logApiError('qualification-forms/questions/create', error);
     return ApiErrors.internalError('Failed to create question');
   }
 }
@@ -170,49 +166,45 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       return ApiErrors.unauthorized();
     }
 
-    const { id } = await params;
+    const { formId } = await params;
     const body = await request.json();
     const supabase = createSupabaseAdminClient();
 
-    // Validate request body
     if (!body.questionIds || !Array.isArray(body.questionIds)) {
       return ApiErrors.validationError('questionIds array is required');
     }
 
-    // Verify funnel ownership
-    const { data: funnel, error: funnelError } = await supabase
-      .from('funnel_pages')
+    // Verify form ownership
+    const { data: form, error: formError } = await supabase
+      .from('qualification_forms')
       .select('id')
-      .eq('id', id)
+      .eq('id', formId)
       .eq('user_id', session.user.id)
       .single();
 
-    if (funnelError || !funnel) {
-      return ApiErrors.notFound('Funnel page');
+    if (formError || !form) {
+      return ApiErrors.notFound('Qualification form');
     }
 
-    // Update each question's order in parallel
     const updates = body.questionIds.map((questionId: string, index: number) =>
       supabase
         .from('qualification_questions')
         .update({ question_order: index })
         .eq('id', questionId)
-        .eq('funnel_page_id', id)
+        .eq('form_id', formId)
     );
 
     const results = await Promise.all(updates);
 
-    // Check if any updates failed
     const failedUpdate = results.find(r => r.error);
     if (failedUpdate?.error) {
-      logApiError('funnel/questions/reorder', failedUpdate.error, { funnelId: id });
+      logApiError('qualification-forms/questions/reorder', failedUpdate.error, { formId });
       return ApiErrors.databaseError('Failed to reorder questions');
     }
 
-    // Return success without refetching - client already has correct order
     return NextResponse.json({ success: true });
   } catch (error) {
-    logApiError('funnel/questions/reorder', error);
+    logApiError('qualification-forms/questions/reorder', error);
     return ApiErrors.internalError('Failed to reorder questions');
   }
 }

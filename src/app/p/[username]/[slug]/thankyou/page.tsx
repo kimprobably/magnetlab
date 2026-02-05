@@ -75,7 +75,8 @@ export default async function PublicThankyouPage({ params, searchParams }: PageP
       theme,
       primary_color,
       background_style,
-      logo_url
+      logo_url,
+      qualification_form_id
     `)
     .eq('user_id', user.id)
     .eq('slug', slug)
@@ -95,12 +96,23 @@ export default async function PublicThankyouPage({ params, searchParams }: PageP
   const hasContent = !!(leadMagnet?.polished_content || leadMagnet?.extracted_content);
   const contentPageUrl = hasContent ? `/p/${username}/${slug}/content` : null;
 
-  // Get qualification/survey questions
-  const { data: questions } = await supabase
-    .from('qualification_questions')
-    .select('id, question_text, question_order, answer_type, options, placeholder, is_required')
-    .eq('funnel_page_id', funnel.id)
-    .order('question_order', { ascending: true });
+  // Get qualification/survey questions (form-aware)
+  let questions;
+  if (funnel.qualification_form_id) {
+    const { data } = await supabase
+      .from('qualification_questions')
+      .select('id, question_text, question_order, answer_type, options, placeholder, is_required')
+      .eq('form_id', funnel.qualification_form_id)
+      .order('question_order', { ascending: true });
+    questions = data;
+  } else {
+    const { data } = await supabase
+      .from('qualification_questions')
+      .select('id, question_text, question_order, answer_type, options, placeholder, is_required')
+      .eq('funnel_page_id', funnel.id)
+      .order('question_order', { ascending: true });
+    questions = data;
+  }
 
   // Fetch page sections for thankyou
   const { data: sectionRows } = await supabase

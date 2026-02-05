@@ -29,6 +29,7 @@ describe('Funnel Type Conversions', () => {
       calendly_url: 'https://calendly.com/user/30min',
       qualification_pass_message: 'Great fit!',
       qualification_fail_message: 'Not a fit right now',
+      qualification_form_id: null,
       theme: 'modern',
       primary_color: '#8b5cf6',
       background_style: 'gradient',
@@ -60,6 +61,7 @@ describe('Funnel Type Conversions', () => {
         calendlyUrl: 'https://calendly.com/user/30min',
         qualificationPassMessage: 'Great fit!',
         qualificationFailMessage: 'Not a fit right now',
+        qualificationFormId: null,
         theme: 'modern',
         primaryColor: '#8b5cf6',
         backgroundStyle: 'gradient',
@@ -97,6 +99,7 @@ describe('Funnel Type Conversions', () => {
     const mockRow: QualificationQuestionRow = {
       id: 'q-123',
       funnel_page_id: 'funnel-456',
+      form_id: null,
       question_text: 'Do you have a team?',
       question_order: 0,
       answer_type: 'yes_no',
@@ -114,6 +117,7 @@ describe('Funnel Type Conversions', () => {
       expect(result).toEqual({
         id: 'q-123',
         funnelPageId: 'funnel-456',
+        formId: null,
         questionText: 'Do you have a team?',
         questionOrder: 0,
         answerType: 'yes_no',

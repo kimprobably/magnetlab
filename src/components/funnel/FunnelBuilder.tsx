@@ -284,6 +284,7 @@ export function FunnelBuilder({
           {activeTab === 'questions' && (
             <QuestionsManager
               funnelId={funnel?.id || null}
+              formId={funnel?.qualificationFormId || null}
               questions={questions}
               setQuestions={setQuestions}
               onNeedsSave={() => {

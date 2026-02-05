@@ -1,5 +1,5 @@
-// API Route: Single Qualification Question
-// PUT, DELETE /api/funnel/[id]/questions/[qid]
+// API Route: Single Form Question
+// PUT, DELETE /api/qualification-forms/[formId]/questions/[qid]
 
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
@@ -14,7 +14,7 @@ import { ApiErrors, logApiError } from '@/lib/api/errors';
 const VALID_ANSWER_TYPES: AnswerType[] = ['yes_no', 'text', 'textarea', 'multiple_choice'];
 
 interface RouteParams {
-  params: Promise<{ id: string; qid: string }>;
+  params: Promise<{ formId: string; qid: string }>;
 }
 
 // PUT - Update a question
@@ -25,23 +25,22 @@ export async function PUT(request: Request, { params }: RouteParams) {
       return ApiErrors.unauthorized();
     }
 
-    const { id, qid } = await params;
+    const { formId, qid } = await params;
     const body = await request.json();
     const supabase = createSupabaseAdminClient();
 
-    // Verify funnel ownership and get form reference
-    const { data: funnel, error: funnelError } = await supabase
-      .from('funnel_pages')
-      .select('id, qualification_form_id')
-      .eq('id', id)
+    // Verify form ownership
+    const { data: form, error: formError } = await supabase
+      .from('qualification_forms')
+      .select('id')
+      .eq('id', formId)
       .eq('user_id', session.user.id)
       .single();
 
-    if (funnelError || !funnel) {
-      return ApiErrors.notFound('Funnel page');
+    if (formError || !form) {
+      return ApiErrors.notFound('Qualification form');
     }
 
-    // Build update object
     const updateData: Record<string, unknown> = {};
 
     if (body.questionText !== undefined) {
@@ -76,22 +75,16 @@ export async function PUT(request: Request, { params }: RouteParams) {
       return ApiErrors.validationError('No valid fields to update');
     }
 
-    // Update question (form-aware: match by form_id or funnel_page_id)
-    let query = supabase
+    const { data, error } = await supabase
       .from('qualification_questions')
       .update(updateData)
-      .eq('id', qid);
-
-    if (funnel.qualification_form_id) {
-      query = query.eq('form_id', funnel.qualification_form_id);
-    } else {
-      query = query.eq('funnel_page_id', id);
-    }
-
-    const { data, error } = await query.select().single();
+      .eq('id', qid)
+      .eq('form_id', formId)
+      .select()
+      .single();
 
     if (error) {
-      logApiError('funnel/questions/update', error, { funnelId: id, questionId: qid });
+      logApiError('qualification-forms/questions/update', error, { formId, questionId: qid });
       return ApiErrors.databaseError('Failed to update question');
     }
 
@@ -101,7 +94,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
 
     return NextResponse.json({ question: qualificationQuestionFromRow(data as QualificationQuestionRow) });
   } catch (error) {
-    logApiError('funnel/questions/update', error);
+    logApiError('qualification-forms/questions/update', error);
     return ApiErrors.internalError('Failed to update question');
   }
 }
@@ -114,43 +107,35 @@ export async function DELETE(request: Request, { params }: RouteParams) {
       return ApiErrors.unauthorized();
     }
 
-    const { id, qid } = await params;
+    const { formId, qid } = await params;
     const supabase = createSupabaseAdminClient();
 
-    // Verify funnel ownership and get form reference
-    const { data: funnel, error: funnelError } = await supabase
-      .from('funnel_pages')
-      .select('id, qualification_form_id')
-      .eq('id', id)
+    // Verify form ownership
+    const { data: form, error: formError } = await supabase
+      .from('qualification_forms')
+      .select('id')
+      .eq('id', formId)
       .eq('user_id', session.user.id)
       .single();
 
-    if (funnelError || !funnel) {
-      return ApiErrors.notFound('Funnel page');
+    if (formError || !form) {
+      return ApiErrors.notFound('Qualification form');
     }
 
-    // Delete question (form-aware)
-    let deleteQuery = supabase
+    const { error } = await supabase
       .from('qualification_questions')
       .delete()
-      .eq('id', qid);
-
-    if (funnel.qualification_form_id) {
-      deleteQuery = deleteQuery.eq('form_id', funnel.qualification_form_id);
-    } else {
-      deleteQuery = deleteQuery.eq('funnel_page_id', id);
-    }
-
-    const { error } = await deleteQuery;
+      .eq('id', qid)
+      .eq('form_id', formId);
 
     if (error) {
-      logApiError('funnel/questions/delete', error, { funnelId: id, questionId: qid });
+      logApiError('qualification-forms/questions/delete', error, { formId, questionId: qid });
       return ApiErrors.databaseError('Failed to delete question');
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    logApiError('funnel/questions/delete', error);
+    logApiError('qualification-forms/questions/delete', error);
     return ApiErrors.internalError('Failed to delete question');
   }
 }

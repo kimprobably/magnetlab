@@ -70,6 +70,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
     if (body.primaryColor !== undefined) updateData.primary_color = body.primaryColor;
     if (body.backgroundStyle !== undefined) updateData.background_style = body.backgroundStyle;
     if (body.logoUrl !== undefined) updateData.logo_url = body.logoUrl;
+    if (body.qualificationFormId !== undefined) updateData.qualification_form_id = body.qualificationFormId;
 
     // Check for slug collision if updating slug
     if (body.slug) {

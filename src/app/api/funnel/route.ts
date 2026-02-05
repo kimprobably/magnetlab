@@ -97,7 +97,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { leadMagnetId, libraryId, externalResourceId, targetType, slug, ...funnelData } = body;
+    const { leadMagnetId, libraryId, externalResourceId, targetType, slug, qualificationFormId, ...funnelData } = body;
 
     if (!slug) {
       return ApiErrors.validationError('slug is required');
@@ -235,6 +235,7 @@ export async function POST(request: Request) {
       primary_color: funnelData.primaryColor || profile?.default_primary_color || '#8b5cf6',
       background_style: funnelData.backgroundStyle || profile?.default_background_style || 'solid',
       logo_url: funnelData.logoUrl || profile?.default_logo_url || null,
+      qualification_form_id: qualificationFormId || null,
     };
 
     let { data, error } = await supabase

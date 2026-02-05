@@ -39,6 +39,9 @@ export interface FunnelPage {
   backgroundStyle: BackgroundStyle;
   logoUrl: string | null;
 
+  // Shared qualification form
+  qualificationFormId: string | null;
+
   // Publishing state
   isPublished: boolean;
   publishedAt: string | null;
@@ -56,7 +59,8 @@ export type AnswerType = 'yes_no' | 'text' | 'textarea' | 'multiple_choice';
 
 export interface QualificationQuestion {
   id: string;
-  funnelPageId: string;
+  funnelPageId: string | null;
+  formId: string | null;
   questionText: string;
   questionOrder: number;
   answerType: AnswerType;
@@ -66,6 +70,26 @@ export interface QualificationQuestion {
   isQualifying: boolean;
   isRequired: boolean;
   createdAt: string;
+}
+
+// ============================================
+// QUALIFICATION FORMS (Reusable question sets)
+// ============================================
+
+export interface QualificationForm {
+  id: string;
+  userId: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface QualificationFormRow {
+  id: string;
+  user_id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
 }
 
 // ============================================
@@ -351,6 +375,7 @@ export interface FunnelPageRow {
   primary_color: string;
   background_style: string;
   logo_url: string | null;
+  qualification_form_id: string | null;
   is_published: boolean;
   published_at: string | null;
   created_at: string;
@@ -359,7 +384,8 @@ export interface FunnelPageRow {
 
 export interface QualificationQuestionRow {
   id: string;
-  funnel_page_id: string;
+  funnel_page_id: string | null;
+  form_id: string | null;
   question_text: string;
   question_order: number;
   answer_type: string;
@@ -419,6 +445,7 @@ export function funnelPageFromRow(row: FunnelPageRow): FunnelPage {
     calendlyUrl: row.calendly_url,
     qualificationPassMessage: row.qualification_pass_message,
     qualificationFailMessage: row.qualification_fail_message,
+    qualificationFormId: row.qualification_form_id || null,
     theme: (row.theme || 'dark') as FunnelTheme,
     primaryColor: row.primary_color || '#8b5cf6',
     backgroundStyle: (row.background_style || 'solid') as BackgroundStyle,
@@ -443,7 +470,8 @@ export function qualificationQuestionFromRow(row: QualificationQuestionRow): Qua
 
   return {
     id: row.id,
-    funnelPageId: row.funnel_page_id,
+    funnelPageId: row.funnel_page_id || null,
+    formId: row.form_id || null,
     questionText: row.question_text,
     questionOrder: row.question_order,
     answerType: (row.answer_type || 'yes_no') as AnswerType,
@@ -453,6 +481,16 @@ export function qualificationQuestionFromRow(row: QualificationQuestionRow): Qua
     isQualifying: row.is_qualifying ?? true,
     isRequired: row.is_required ?? true,
     createdAt: row.created_at,
+  };
+}
+
+export function qualificationFormFromRow(row: QualificationFormRow): QualificationForm {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    name: row.name,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }
 
