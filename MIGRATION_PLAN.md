@@ -27,11 +27,56 @@ MagnetLab API uses session cookies. You need to:
 
 ## Phase 0: Setup (One-Time)
 
-### Step 0.1 — Start the dev server
+### Step 0.0 — Clone the repo and install
+
+**Prerequisites**: Node.js 22+, npm 10+, Git
+
+```bash
+# 1. Clone the repo
+git clone https://github.com/kimprobably/magnetlab.git
+cd magnetlab
+
+# 2. Install dependencies
+npm install
+```
+
+### Step 0.0.1 — Set up environment variables
+
+Tim will provide the `.env.local` file (it's gitignored and contains secrets). Place it in the repo root:
 
 ```
-Claude Code prompt:
-"Start the magnetlab dev server with npm run dev"
+magnetlab/
+├── .env.local    ← Tim provides this
+├── package.json
+├── ...
+```
+
+The file contains these keys (don't commit this file):
+- `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY`
+- `NEXTAUTH_SECRET` / `NEXTAUTH_URL`
+- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`
+- `ANTHROPIC_API_KEY`
+- `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` / `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
+- `NOTION_CLIENT_ID` / `NOTION_CLIENT_SECRET`
+- `RESEND_API_KEY`
+- `TRIGGER_SECRET_KEY`
+- `GTM_SYSTEM_WEBHOOK_URL` / `GTM_SYSTEM_WEBHOOK_SECRET` (optional)
+
+Ask Tim for this file before proceeding.
+
+### Step 0.0.2 — Verify the build works
+
+```bash
+# Make sure everything compiles
+npm run build
+```
+
+If the build succeeds, you're good to go. If it fails, check that `.env.local` is in place and Node version is 22+.
+
+### Step 0.1 — Start the dev server
+
+```bash
+npm run dev
 ```
 
 Keep it running in the background. All API calls go to `http://localhost:3000`.
@@ -60,6 +105,16 @@ Claude Code prompt:
 ```
 
 Claude Code can store it in a variable in the migration script.
+
+### Step 0.4 — Pulling latest changes
+
+Before starting any work session, always pull the latest code:
+
+```bash
+cd magnetlab
+git pull origin main
+npm install  # in case dependencies changed
+```
 
 ---
 
