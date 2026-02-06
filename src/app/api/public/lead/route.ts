@@ -123,12 +123,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Failed to capture lead', code: 'DATABASE_ERROR' }, { status: 500 });
     }
 
-    // Get lead magnet title for webhook
+    // Get lead magnet title + external_url for webhook
     const { data: leadMagnet } = await supabase
       .from('lead_magnets')
-      .select('title')
+      .select('title, external_url, polished_content, extracted_content')
       .eq('id', funnel.lead_magnet_id)
       .single();
+
+    // Get username to construct content URL
+    const { data: funnelOwner } = await supabase
+      .from('users')
+      .select('username')
+      .eq('id', funnel.user_id)
+      .single();
+
+    // Build resource URL: external_url takes priority, then hosted content page
+    let resourceUrl: string | null = leadMagnet?.external_url || null;
+    if (!resourceUrl && funnelOwner?.username && (leadMagnet?.polished_content || leadMagnet?.extracted_content)) {
+      resourceUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://www.magnetlab.app'}/p/${funnelOwner.username}/${funnel.slug}/content`;
+    }
 
     // Deliver webhook (async, don't wait)
     deliverWebhook(funnel.user_id, 'lead.created', {
@@ -154,6 +167,7 @@ export async function POST(request: Request) {
       leadMagnetTitle: leadMagnet?.title || '',
       funnelPageId: funnel.id,
       funnelPageSlug: funnel.slug,
+      resourceUrl,
       isQualified: false,
       utmSource: lead.utm_source,
       utmMedium: lead.utm_medium,

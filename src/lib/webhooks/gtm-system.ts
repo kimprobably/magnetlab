@@ -17,6 +17,7 @@ export interface GtmLeadCreatedPayload {
     leadMagnetTitle: string;
     funnelPageId: string;
     funnelPageSlug: string;
+    resourceUrl: string | null;
     isQualified: false;
     utmSource: string | null;
     utmMedium: string | null;
