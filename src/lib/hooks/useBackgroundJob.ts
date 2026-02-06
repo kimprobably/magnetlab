@@ -105,6 +105,7 @@ export function useBackgroundJob<TResult = unknown>(
     // Set timeout
     timeoutRef.current = setTimeout(() => {
       stopPolling();
+      setStatus(null);
       setError('Job timed out');
       onErrorRef.current?.('Job timed out');
     }, timeout);
