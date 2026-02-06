@@ -11,6 +11,7 @@ import { leadCaptureSchema, leadQualificationSchema, validateBody } from '@/lib/
 import { logApiError } from '@/lib/api/errors';
 import { fireGtmLeadCreatedWebhook, fireGtmLeadQualifiedWebhook } from '@/lib/webhooks/gtm-system';
 import { resolveFullQuestionsForFunnel } from '@/lib/services/qualification';
+import { fireTrackingPixelLeadEvent, fireTrackingPixelQualifiedEvent } from '@/lib/services/tracking-pixels';
 
 // Rate limiting configuration
 // Uses database-based checking for serverless compatibility
@@ -63,6 +64,7 @@ function getClientIp(request: Request): string {
 export async function POST(request: Request) {
   try {
     const ip = getClientIp(request);
+    const userAgent = request.headers.get('user-agent') || null;
     const body = await request.json();
 
     // Validate input with Zod schema
@@ -74,7 +76,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { funnelPageId, email, name, utmSource, utmMedium, utmCampaign } = validation.data;
+    const { funnelPageId, email, name, utmSource, utmMedium, utmCampaign, fbc, fbp } = validation.data;
     const supabase = createSupabaseAdminClient();
 
     // Database-based rate limiting (serverless-compatible)
@@ -114,6 +116,7 @@ export async function POST(request: Request) {
         utm_medium: utmMedium || null,
         utm_campaign: utmCampaign || null,
         ip_address: ip !== 'unknown' ? ip : null,
+        user_agent: userAgent,
       })
       .select()
       .single();
@@ -185,6 +188,23 @@ export async function POST(request: Request) {
       leadMagnetTitle: leadMagnet?.title || '',
     }).catch((err) => logApiError('public/lead/email-sequence', err, { leadId: lead.id }));
 
+    // Fire tracking pixel events (Meta CAPI, LinkedIn CAPI) — async, non-blocking
+    fireTrackingPixelLeadEvent({
+      userId: funnel.user_id,
+      leadId: lead.id,
+      email: lead.email,
+      firstName: lead.name || null,
+      ipAddress: ip !== 'unknown' ? ip : null,
+      userAgent,
+      sourceUrl: request.headers.get('referer') || undefined,
+      fbc: fbc || null,
+      fbp: fbp || null,
+      utmSource: lead.utm_source,
+      utmMedium: lead.utm_medium,
+      utmCampaign: lead.utm_campaign,
+      leadMagnetTitle: leadMagnet?.title || null,
+    }).catch((err) => logApiError('public/lead/tracking-pixels', err, { leadId: lead.id }));
+
     return NextResponse.json({
       leadId: lead.id,
       success: true,
@@ -198,6 +218,9 @@ export async function POST(request: Request) {
 // PATCH - Update lead with qualification answers
 export async function PATCH(request: Request) {
   try {
+    const patchIp = getClientIp(request);
+    const patchUserAgent = request.headers.get('user-agent') || null;
+    const patchReferer = request.headers.get('referer') || undefined;
     const body = await request.json();
 
     // Validate input with Zod schema
@@ -362,6 +385,23 @@ export async function PATCH(request: Request) {
       utmCampaign: updatedLead.utm_campaign,
       createdAt: updatedLead.created_at,
     }).catch((err) => logApiError('public/lead/webhook', err, { leadId: lead.id }));
+
+    // Fire tracking pixel qualified events (async, non-blocking)
+    fireTrackingPixelQualifiedEvent({
+      userId: lead.user_id,
+      leadId: lead.id,
+      email: lead.email,
+      firstName: lead.name || null,
+      ipAddress: patchIp !== 'unknown' ? patchIp : null,
+      userAgent: patchUserAgent,
+      sourceUrl: patchReferer,
+      utmSource: updatedLead.utm_source,
+      utmMedium: updatedLead.utm_medium,
+      utmCampaign: updatedLead.utm_campaign,
+      leadMagnetTitle: leadMagnetTitle || null,
+      isQualified,
+      qualificationAnswers: answers,
+    }).catch((err) => logApiError('public/lead/tracking-pixels-qualified', err, { leadId: lead.id }));
 
     // Fire GTM system webhook for lead qualification (async, don't wait)
     fireGtmLeadQualifiedWebhook({

@@ -6,6 +6,7 @@ import { VideoEmbed } from './VideoEmbed';
 import { CalendlyEmbed } from './CalendlyEmbed';
 import { getThemeVars } from '@/lib/utils/theme-vars';
 import { SectionRenderer } from '@/components/ds';
+import { PixelScripts, type PixelConfig } from './PixelScripts';
 import type { FunnelPageSection } from '@/lib/types/funnel';
 
 type AnswerType = 'yes_no' | 'text' | 'textarea' | 'multiple_choice';
@@ -36,6 +37,7 @@ interface ThankyouPageProps {
   contentPageUrl?: string | null;
   leadMagnetTitle?: string | null;
   sections?: FunnelPageSection[];
+  pixelConfig?: PixelConfig;
 }
 
 export function ThankyouPage({
@@ -52,6 +54,7 @@ export function ThankyouPage({
   backgroundStyle = 'solid',
   logoUrl,
   sections = [],
+  pixelConfig,
 }: ThankyouPageProps) {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -176,6 +179,8 @@ export function ThankyouPage({
   }, [qualificationComplete, isQualified, calendlyUrl]);
 
   return (
+    <>
+    {pixelConfig && <PixelScripts config={pixelConfig} />}
     <div
       className="min-h-screen flex flex-col items-center px-4 py-12"
       style={{ background: getBackgroundStyle(), ...themeVars }}
@@ -483,5 +488,6 @@ export function ThankyouPage({
         </a>
       </div>
     </div>
+    </>
   );
 }

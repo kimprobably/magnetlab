@@ -125,6 +125,31 @@ export default async function PublicThankyouPage({ params, searchParams }: PageP
 
   const sections = (sectionRows as FunnelPageSectionRow[] || []).map(funnelPageSectionFromRow);
 
+  // Fetch user's active pixel integrations (pixel IDs only, no tokens)
+  const { data: pixelIntegrations } = await supabase
+    .from('user_integrations')
+    .select('service, metadata, is_active')
+    .eq('user_id', user.id)
+    .in('service', ['meta_pixel', 'linkedin_insight'])
+    .eq('is_active', true);
+
+  const pixelConfig: { meta?: { pixelId: string; enabledEvents: string[] }; linkedin?: { partnerId: string; enabledEvents: string[] } } = {};
+  for (const pi of pixelIntegrations || []) {
+    const meta = pi.metadata as Record<string, unknown> | null;
+    if (pi.service === 'meta_pixel' && meta?.pixel_id) {
+      pixelConfig.meta = {
+        pixelId: meta.pixel_id as string,
+        enabledEvents: (meta.enabled_events as string[]) || [],
+      };
+    }
+    if (pi.service === 'linkedin_insight' && meta?.partner_id) {
+      pixelConfig.linkedin = {
+        partnerId: meta.partner_id as string,
+        enabledEvents: (meta.enabled_events as string[]) || [],
+      };
+    }
+  }
+
   return (
     <ThankyouPage
       leadId={leadId || null}
@@ -150,6 +175,7 @@ export default async function PublicThankyouPage({ params, searchParams }: PageP
       contentPageUrl={contentPageUrl}
       leadMagnetTitle={leadMagnet?.title || null}
       sections={sections}
+      pixelConfig={pixelConfig}
     />
   );
 }

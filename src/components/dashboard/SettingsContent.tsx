@@ -5,6 +5,7 @@ import { User, CreditCard, Loader2, Check, Link2, Eye, EyeOff, CheckCircle, XCir
 import { PRICING_PLANS } from '@/lib/types/integrations';
 import { UsernameSettings } from '@/components/settings/UsernameSettings';
 import { ResendSettings } from '@/components/settings/ResendSettings';
+import { TrackingPixelSettings } from '@/components/settings/TrackingPixelSettings';
 
 interface ApiKey {
   id: string;
@@ -476,6 +477,15 @@ export function SettingsContent({
             lastVerifiedAt={resendIntegration?.last_verified_at ?? null}
             metadata={resendIntegration?.metadata as { fromEmail?: string; fromName?: string } | undefined}
           />
+
+          {/* Tracking Pixels */}
+          <div className="mt-6 pt-6 border-t">
+            <h3 className="text-sm font-semibold mb-1">Tracking Pixels</h3>
+            <p className="text-xs text-muted-foreground mb-3">
+              Add conversion tracking to your funnel pages. Events fire both client-side and server-side for maximum accuracy.
+            </p>
+            <TrackingPixelSettings integrations={integrations} />
+          </div>
         </div>
 
         {/* API Keys Section */}

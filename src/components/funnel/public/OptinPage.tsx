@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { getThemeVars } from '@/lib/utils/theme-vars';
 import { CTAButton, SectionRenderer } from '@/components/ds';
+import { PixelScripts, fireClientLeadEvent, type PixelConfig } from './PixelScripts';
 import type { FunnelPageSection } from '@/lib/types/funnel';
 
 interface OptinPageProps {
@@ -20,6 +21,8 @@ interface OptinPageProps {
   backgroundStyle?: 'solid' | 'gradient' | 'pattern';
   logoUrl?: string | null;
   sections?: FunnelPageSection[];
+  pixelConfig?: PixelConfig;
+  leadMagnetTitle?: string | null;
 }
 
 export function OptinPage({
@@ -35,6 +38,8 @@ export function OptinPage({
   backgroundStyle = 'solid',
   logoUrl,
   sections = [],
+  pixelConfig,
+  leadMagnetTitle,
 }: OptinPageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -80,6 +85,13 @@ export function OptinPage({
     setError(null);
 
     try {
+      // Read Meta cookies for CAPI match rate
+      const cookies = document.cookie.split(';').reduce((acc, c) => {
+        const [k, v] = c.trim().split('=');
+        if (k) acc[k] = v || '';
+        return acc;
+      }, {} as Record<string, string>);
+
       const response = await fetch('/api/public/lead', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -89,6 +101,8 @@ export function OptinPage({
           utmSource: searchParams.get('utm_source') || undefined,
           utmMedium: searchParams.get('utm_medium') || undefined,
           utmCampaign: searchParams.get('utm_campaign') || undefined,
+          fbc: cookies['_fbc'] || undefined,
+          fbp: cookies['_fbp'] || undefined,
         }),
       });
 
@@ -98,6 +112,12 @@ export function OptinPage({
       }
 
       const { leadId } = await response.json();
+
+      // Fire client-side lead event for dedup with server-side CAPI
+      if (pixelConfig) {
+        fireClientLeadEvent(pixelConfig, leadId, leadMagnetTitle || undefined);
+      }
+
       router.push(`/p/${username}/${slug}/thankyou?leadId=${leadId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
@@ -107,6 +127,8 @@ export function OptinPage({
   };
 
   return (
+    <>
+    {pixelConfig && <PixelScripts config={pixelConfig} />}
     <div
       className="min-h-screen flex flex-col items-center justify-center px-4 py-12"
       style={{ background: getBackgroundStyle(), ...themeVars }}
@@ -210,5 +232,6 @@ export function OptinPage({
         </a>
       </div>
     </div>
+    </>
   );
 }

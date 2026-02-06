@@ -71,6 +71,7 @@ export default async function PublicOptinPage({ params }: PageProps) {
     .select(`
       id,
       slug,
+      lead_magnet_id,
       optin_headline,
       optin_subline,
       optin_button_text,
@@ -89,6 +90,13 @@ export default async function PublicOptinPage({ params }: PageProps) {
     notFound();
   }
 
+  // Fetch lead magnet title for pixel tracking content_name
+  const { data: leadMagnet } = await supabase
+    .from('lead_magnets')
+    .select('title')
+    .eq('id', funnel.lead_magnet_id)
+    .single();
+
   // Fetch page sections for optin
   const { data: sectionRows } = await supabase
     .from('funnel_page_sections')
@@ -99,6 +107,31 @@ export default async function PublicOptinPage({ params }: PageProps) {
     .order('sort_order', { ascending: true });
 
   const sections = (sectionRows as FunnelPageSectionRow[] || []).map(funnelPageSectionFromRow);
+
+  // Fetch user's active pixel integrations (pixel IDs only, no tokens)
+  const { data: pixelIntegrations } = await supabase
+    .from('user_integrations')
+    .select('service, metadata, is_active')
+    .eq('user_id', user.id)
+    .in('service', ['meta_pixel', 'linkedin_insight'])
+    .eq('is_active', true);
+
+  const pixelConfig: { meta?: { pixelId: string; enabledEvents: string[] }; linkedin?: { partnerId: string; enabledEvents: string[] } } = {};
+  for (const pi of pixelIntegrations || []) {
+    const meta = pi.metadata as Record<string, unknown> | null;
+    if (pi.service === 'meta_pixel' && meta?.pixel_id) {
+      pixelConfig.meta = {
+        pixelId: meta.pixel_id as string,
+        enabledEvents: (meta.enabled_events as string[]) || [],
+      };
+    }
+    if (pi.service === 'linkedin_insight' && meta?.partner_id) {
+      pixelConfig.linkedin = {
+        partnerId: meta.partner_id as string,
+        enabledEvents: (meta.enabled_events as string[]) || [],
+      };
+    }
+  }
 
   return (
     <OptinPage
@@ -114,6 +147,8 @@ export default async function PublicOptinPage({ params }: PageProps) {
       backgroundStyle={(funnel.background_style as 'solid' | 'gradient' | 'pattern') || 'solid'}
       logoUrl={funnel.logo_url}
       sections={sections}
+      pixelConfig={pixelConfig}
+      leadMagnetTitle={leadMagnet?.title || null}
     />
   );
 }
