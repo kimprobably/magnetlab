@@ -1,6 +1,6 @@
 import { task } from "@trigger.dev/sdk/v3";
 import { createSupabaseAdminClient } from "@/lib/utils/supabase-server";
-import { generateLeadMagnetIdeas } from "@/lib/ai/lead-magnet-generator";
+import { generateLeadMagnetIdeasParallel } from "@/lib/ai/lead-magnet-generator";
 import { logApiError } from "@/lib/api/errors";
 import type { BusinessContext } from "@/lib/types/lead-magnet";
 import type { IdeationJobInput } from "@/lib/types/background-jobs";
@@ -44,8 +44,9 @@ export const ideateLeadMagnet = task({
         successExample: input.businessContext.successExample,
       };
 
-      // Generate ideas (this is the slow part)
-      const result = await generateLeadMagnetIdeas(businessContext, input.sources);
+      // Generate ideas using parallel batching for ~60x faster performance
+      // See MOD-71: splits 10 concepts into 3 parallel batches
+      const result = await generateLeadMagnetIdeasParallel(businessContext, input.sources);
 
       // Save result to brand_kit for future use
       try {
