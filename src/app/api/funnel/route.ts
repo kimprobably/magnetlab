@@ -24,7 +24,7 @@ export async function GET(request: Request) {
     const externalResourceId = searchParams.get('externalResourceId');
 
     const supabase = createSupabaseAdminClient();
-    let query = supabase.from('funnel_pages').select('*').eq('user_id', session.user.id);
+    let query = supabase.from('funnel_pages').select('id, lead_magnet_id, user_id, slug, target_type, library_id, external_resource_id, optin_headline, optin_subline, optin_button_text, optin_social_proof, thankyou_headline, thankyou_subline, vsl_url, calendly_url, qualification_pass_message, qualification_fail_message, theme, primary_color, background_style, logo_url, qualification_form_id, is_published, published_at, created_at, updated_at').eq('user_id', session.user.id);
 
     // Determine which target type to query
     if (leadMagnetId) {

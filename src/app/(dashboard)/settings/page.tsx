@@ -14,14 +14,14 @@ export default async function SettingsPage() {
   // Get subscription
   const { data: subscription } = await supabase
     .from('subscriptions')
-    .select('*')
+    .select('id, user_id, stripe_customer_id, stripe_subscription_id, plan, status, current_period_start, current_period_end, cancel_at_period_end, created_at, updated_at')
     .eq('user_id', session?.user?.id)
     .single();
 
   // Get brand kit
   const { data: brandKit } = await supabase
     .from('brand_kits')
-    .select('*')
+    .select('id, user_id, business_description, business_type, target_audience, credibility_markers, tone, content_pillars, primary_color, secondary_color, logo_url, sender_name, saved_ideation_result, ideation_generated_at, created_at, updated_at')
     .eq('user_id', session?.user?.id)
     .single();
 
@@ -29,7 +29,7 @@ export default async function SettingsPage() {
   const monthYear = new Date().toISOString().slice(0, 7);
   const { data: usage } = await supabase
     .from('usage_tracking')
-    .select('*')
+    .select('id, user_id, month_year, lead_magnets_created, ai_calls_made, leads_captured, created_at, updated_at')
     .eq('user_id', session?.user?.id)
     .eq('month_year', monthYear)
     .single();

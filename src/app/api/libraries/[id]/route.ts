@@ -30,7 +30,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
 
     const { data, error } = await supabase
       .from('libraries')
-      .select('*')
+      .select('id, user_id, name, description, icon, slug, auto_feature_days, created_at, updated_at')
       .eq('id', id)
       .eq('user_id', session.user.id)
       .single();

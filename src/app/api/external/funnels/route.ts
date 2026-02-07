@@ -40,7 +40,7 @@ async function handleGet(
     // Get funnel page
     const { data, error } = await supabase
       .from('funnel_pages')
-      .select('*')
+      .select('id, lead_magnet_id, user_id, slug, target_type, library_id, external_resource_id, optin_headline, optin_subline, optin_button_text, optin_social_proof, thankyou_headline, thankyou_subline, vsl_url, calendly_url, qualification_pass_message, qualification_fail_message, theme, primary_color, background_style, logo_url, qualification_form_id, is_published, published_at, created_at, updated_at')
       .eq('lead_magnet_id', leadMagnetId)
       .eq('user_id', context.userId)
       .single();

@@ -28,7 +28,7 @@ export async function GET(request: Request, { params }: RouteParams) {
     const supabase = createSupabaseAdminClient();
     const { data, error } = await supabase
       .from('external_resources')
-      .select('*')
+      .select('id, user_id, title, url, icon, click_count, created_at, updated_at')
       .eq('id', id)
       .eq('user_id', session.user.id)
       .single();

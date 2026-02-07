@@ -19,7 +19,7 @@ export default async function AnalyticsPage() {
 
   const { data: analytics } = await supabase
     .from('lead_magnet_analytics')
-    .select('*')
+    .select('id, lead_magnet_id, linkedin_views, linkedin_likes, linkedin_comments, linkedin_shares, dms_sent, leads_captured, captured_at')
     .in(
       'lead_magnet_id',
       (leadMagnets || []).map((lm) => lm.id)

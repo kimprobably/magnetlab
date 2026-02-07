@@ -8,28 +8,35 @@ import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
 import { externalResourceFromRow, type ExternalResourceRow } from '@/lib/types/library';
 import { ApiErrors, logApiError } from '@/lib/api/errors';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
       return ApiErrors.unauthorized();
     }
 
+    const { searchParams } = new URL(request.url);
+    const limit = Math.min(parseInt(searchParams.get('limit') || '100', 10), 500);
+    const offset = parseInt(searchParams.get('offset') || '0', 10);
+
     const supabase = createSupabaseAdminClient();
     const { data, error } = await supabase
       .from('external_resources')
-      .select('*')
+      .select('id, user_id, title, url, icon, click_count, created_at, updated_at')
       .eq('user_id', session.user.id)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
 
     if (error) {
       logApiError('external-resources/list', error, { userId: session.user.id });
       return ApiErrors.databaseError('Failed to fetch external resources');
     }
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       resources: (data as ExternalResourceRow[]).map(externalResourceFromRow),
     });
+    response.headers.set('Cache-Control', 'private, max-age=60, stale-while-revalidate=120');
+    return response;
   } catch (error) {
     logApiError('external-resources/list', error);
     return ApiErrors.internalError('Failed to fetch external resources');

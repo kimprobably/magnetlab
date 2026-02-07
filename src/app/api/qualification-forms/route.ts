@@ -12,20 +12,25 @@ import {
 import { ApiErrors, logApiError } from '@/lib/api/errors';
 
 // GET - List all qualification forms for the current user
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
       return ApiErrors.unauthorized();
     }
 
+    const { searchParams } = new URL(request.url);
+    const limit = Math.min(parseInt(searchParams.get('limit') || '100', 10), 500);
+    const offset = parseInt(searchParams.get('offset') || '0', 10);
+
     const supabase = createSupabaseAdminClient();
 
     const { data, error } = await supabase
       .from('qualification_forms')
-      .select('*')
+      .select('id, user_id, name, created_at, updated_at')
       .eq('user_id', session.user.id)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
 
     if (error) {
       logApiError('qualification-forms/list', error, { userId: session.user.id });
@@ -33,7 +38,9 @@ export async function GET() {
     }
 
     const forms = (data as QualificationFormRow[]).map(qualificationFormFromRow);
-    return NextResponse.json({ forms });
+    const response = NextResponse.json({ forms });
+    response.headers.set('Cache-Control', 'private, max-age=60, stale-while-revalidate=120');
+    return response;
   } catch (error) {
     logApiError('qualification-forms/list', error);
     return ApiErrors.internalError('Failed to fetch forms');

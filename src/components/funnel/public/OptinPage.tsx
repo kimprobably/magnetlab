@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { getThemeVars } from '@/lib/utils/theme-vars';
@@ -136,7 +137,7 @@ export function OptinPage({
       <div className="w-full max-w-md space-y-8 text-center">
         {/* Logo */}
         {logoUrl && (
-          <img src={logoUrl} alt="Logo" className="h-12 w-auto mx-auto" />
+          <Image src={logoUrl} alt="Logo" width={120} height={48} className="h-12 w-auto mx-auto" unoptimized />
         )}
 
         {/* Headline */}

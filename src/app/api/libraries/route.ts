@@ -9,20 +9,25 @@ import { libraryFromRow, type LibraryRow } from '@/lib/types/library';
 import { ApiErrors, logApiError } from '@/lib/api/errors';
 
 // GET - List all libraries for current user
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
       return ApiErrors.unauthorized();
     }
 
+    const { searchParams } = new URL(request.url);
+    const limit = Math.min(parseInt(searchParams.get('limit') || '100', 10), 500);
+    const offset = parseInt(searchParams.get('offset') || '0', 10);
+
     const supabase = createSupabaseAdminClient();
 
     const { data, error } = await supabase
       .from('libraries')
-      .select('*')
+      .select('id, user_id, name, description, icon, slug, auto_feature_days, created_at, updated_at')
       .eq('user_id', session.user.id)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
 
     if (error) {
       logApiError('libraries/list', error, { userId: session.user.id });
@@ -31,7 +36,9 @@ export async function GET() {
 
     const libraries = (data as LibraryRow[]).map(libraryFromRow);
 
-    return NextResponse.json({ libraries });
+    const response = NextResponse.json({ libraries });
+    response.headers.set('Cache-Control', 'private, max-age=60, stale-while-revalidate=120');
+    return response;
   } catch (error) {
     logApiError('libraries/list', error);
     return ApiErrors.internalError('Failed to fetch libraries');

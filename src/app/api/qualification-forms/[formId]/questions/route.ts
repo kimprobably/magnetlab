@@ -42,7 +42,7 @@ export async function GET(request: Request, { params }: RouteParams) {
 
     const { data, error } = await supabase
       .from('qualification_questions')
-      .select('*')
+      .select('id, funnel_page_id, form_id, question_text, question_order, answer_type, qualifying_answer, options, placeholder, is_qualifying, is_required, created_at')
       .eq('form_id', formId)
       .order('question_order', { ascending: true });
 

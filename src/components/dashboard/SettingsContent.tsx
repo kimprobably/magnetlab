@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { User, CreditCard, Loader2, Check, Link2, Eye, EyeOff, CheckCircle, XCircle, Key, Copy, Trash2, Plus, Video } from 'lucide-react';
 import { PRICING_PLANS } from '@/lib/types/integrations';
 import { UsernameSettings } from '@/components/settings/UsernameSettings';
@@ -297,7 +298,7 @@ export function SettingsContent({
           </div>
           <div className="flex items-center gap-4 mb-6">
             {user?.image ? (
-              <img src={user.image} alt={user.name || ''} className="h-16 w-16 rounded-full" />
+              <Image src={user.image} alt={user.name || ''} width={64} height={64} className="h-16 w-16 rounded-full" />
             ) : (
               <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary text-2xl font-medium text-primary-foreground">
                 {user?.name?.[0] || 'U'}

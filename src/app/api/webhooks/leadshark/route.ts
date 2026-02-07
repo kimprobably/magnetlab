@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
     // Check for existing analytics record for today
     const { data: existingAnalytics } = await supabase
       .from('lead_magnet_analytics')
-      .select('*')
+      .select('id, lead_magnet_id, linkedin_views, linkedin_likes, linkedin_comments, linkedin_shares, dms_sent, dms_replied, connections_made, leads_captured, captured_at')
       .eq('lead_magnet_id', leadMagnet.id)
       .gte('captured_at', today)
       .lt('captured_at', new Date(new Date(today).getTime() + 24 * 60 * 60 * 1000).toISOString())

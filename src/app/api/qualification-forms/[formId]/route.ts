@@ -27,7 +27,7 @@ export async function GET(request: Request, { params }: RouteParams) {
 
     const { data, error } = await supabase
       .from('qualification_forms')
-      .select('*')
+      .select('id, user_id, name, created_at, updated_at')
       .eq('id', formId)
       .eq('user_id', session.user.id)
       .single();

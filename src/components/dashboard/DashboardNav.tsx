@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import posthog from 'posthog-js';
@@ -124,9 +125,11 @@ export function DashboardNav({ user }: DashboardNavProps) {
           <ThemeToggle />
           <div className="flex items-center gap-3">
             {user.image ? (
-              <img
+              <Image
                 src={user.image}
                 alt={user.name || 'User'}
+                width={32}
+                height={32}
                 className="h-8 w-8 rounded-full"
               />
             ) : (

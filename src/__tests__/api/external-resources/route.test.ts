@@ -45,7 +45,7 @@ describe('External Resources API Routes', () => {
     it('should return 401 if not authenticated', async () => {
       mockAuth.mockResolvedValueOnce(null);
 
-      const response = await GET();
+      const response = await GET(new Request('http://localhost/api/external-resources'));
       const data = await response.json();
 
       expect(response.status).toBe(401);
@@ -73,7 +73,7 @@ describe('External Resources API Routes', () => {
         error: null,
       });
 
-      const response = await GET();
+      const response = await GET(new Request('http://localhost/api/external-resources'));
       const data = await response.json();
 
       expect(response.status).toBe(200);
@@ -86,7 +86,7 @@ describe('External Resources API Routes', () => {
       mockAuth.mockResolvedValueOnce({ user: { id: 'user-123' } });
       mockSupabaseClient.order.mockResolvedValueOnce({ data: [], error: null });
 
-      const response = await GET();
+      const response = await GET(new Request('http://localhost/api/external-resources'));
       const data = await response.json();
 
       expect(response.status).toBe(200);

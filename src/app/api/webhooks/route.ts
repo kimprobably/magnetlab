@@ -8,20 +8,25 @@ import { webhookConfigFromRow, type WebhookConfigRow } from '@/lib/types/funnel'
 import { ApiErrors, logApiError } from '@/lib/api/errors';
 
 // GET - List all webhooks for current user
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
       return ApiErrors.unauthorized();
     }
 
+    const { searchParams } = new URL(request.url);
+    const limit = Math.min(parseInt(searchParams.get('limit') || '100', 10), 500);
+    const offset = parseInt(searchParams.get('offset') || '0', 10);
+
     const supabase = createSupabaseAdminClient();
 
     const { data, error } = await supabase
       .from('webhook_configs')
-      .select('*')
+      .select('id, user_id, name, url, is_active, created_at, updated_at')
       .eq('user_id', session.user.id)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
 
     if (error) {
       logApiError('webhooks/list', error, { userId: session.user.id });

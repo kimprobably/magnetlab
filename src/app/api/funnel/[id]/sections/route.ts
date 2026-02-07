@@ -38,7 +38,7 @@ export async function GET(request: Request, { params }: RouteParams) {
 
     const { data, error } = await supabase
       .from('funnel_page_sections')
-      .select('*')
+      .select('id, funnel_page_id, section_type, page_location, sort_order, is_visible, config, created_at, updated_at')
       .eq('funnel_page_id', id)
       .order('page_location')
       .order('sort_order', { ascending: true });

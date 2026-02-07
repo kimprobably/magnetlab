@@ -19,7 +19,7 @@ export async function GET() {
 
     const { data, error } = await supabase
       .from('brand_kits')
-      .select('*')
+      .select('id, user_id, business_description, business_type, target_audience, credibility_markers, tone, content_pillars, primary_color, secondary_color, logo_url, sender_name, saved_ideation_result, ideation_generated_at, urgent_pains, templates, processes, tools, frequent_questions, results, success_example, audience_tools, preferred_tone, style_profile, created_at, updated_at')
       .eq('user_id', session.user.id)
       .single();
 
@@ -30,11 +30,13 @@ export async function GET() {
     }
 
     // Return both brand kit and saved ideation
-    return NextResponse.json({
+    const response = NextResponse.json({
       brandKit: data || null,
       savedIdeation: data?.saved_ideation_result || null,
       ideationGeneratedAt: data?.ideation_generated_at || null,
     });
+    response.headers.set('Cache-Control', 'private, max-age=120, stale-while-revalidate=240');
+    return response;
   } catch (error) {
     logApiError('brand-kit/get', error);
     return ApiErrors.internalError('Failed to fetch brand kit');
