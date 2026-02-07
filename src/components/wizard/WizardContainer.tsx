@@ -51,7 +51,7 @@ export function WizardContainer() {
 
   const { startPolling, isLoading: isJobLoading } = useBackgroundJob<IdeationResult>({
     pollInterval: 2000,
-    timeout: 300000, // 5 minutes
+    timeout: 360000, // 6 minutes - provides buffer after AI timeout (MOD-68)
     onComplete: (ideationResult) => {
       setState((prev) => ({
         ...prev,

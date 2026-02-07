@@ -6,7 +6,7 @@ import type { JobStatus, JobStatusResponse } from '@/lib/types/background-jobs';
 interface UseBackgroundJobOptions<TResult> {
   /** Polling interval in ms (default: 2000) */
   pollInterval?: number;
-  /** Stop polling after this many ms (default: 300000 = 5 min) */
+  /** Stop polling after this many ms (default: 360000 = 6 min) */
   timeout?: number;
   /** Callback when job completes successfully */
   onComplete?: (result: TResult) => void;
@@ -29,7 +29,8 @@ export function useBackgroundJob<TResult = unknown>(
 ): UseBackgroundJobReturn<TResult> {
   const {
     pollInterval = 2000,
-    timeout = 300000,
+    // 6 minutes - provides 2-minute buffer after Anthropic SDK 4-minute timeout (MOD-68)
+    timeout = 360000,
     onComplete,
     onError,
   } = options;
