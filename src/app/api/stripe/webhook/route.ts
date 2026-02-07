@@ -6,6 +6,7 @@ import { constructWebhookEvent, parseSubscriptionEvent } from '@/lib/integration
 import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
 import { logApiError } from '@/lib/api/errors';
 import Stripe from 'stripe';
+import { getPostHogServerClient } from '@/lib/posthog';
 
 export async function POST(request: Request) {
   try {
@@ -63,6 +64,8 @@ export async function POST(request: Request) {
               cancel_at_period_end: data.cancelAtPeriodEnd,
             })
             .eq('user_id', existingSub.user_id);
+
+          try { getPostHogServerClient()?.capture({ distinctId: existingSub.user_id, event: 'subscription_updated', properties: { plan: data.plan, status: data.status } }); } catch {}
         }
         break;
       }
@@ -86,6 +89,8 @@ export async function POST(request: Request) {
               stripe_subscription_id: null,
             })
             .eq('user_id', existingSub.user_id);
+
+          try { getPostHogServerClient()?.capture({ distinctId: existingSub.user_id, event: 'subscription_canceled' }); } catch {}
         }
         break;
       }
@@ -105,6 +110,8 @@ export async function POST(request: Request) {
             .from('subscriptions')
             .update({ status: 'past_due' })
             .eq('user_id', existingSub.user_id);
+
+          try { getPostHogServerClient()?.capture({ distinctId: existingSub.user_id, event: 'payment_failed' }); } catch {}
         }
         break;
       }

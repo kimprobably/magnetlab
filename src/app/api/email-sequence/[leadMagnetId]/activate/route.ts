@@ -7,6 +7,7 @@ import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
 import { emailSequenceFromRow } from '@/lib/types/email';
 import type { EmailSequenceRow } from '@/lib/types/email';
 import { ApiErrors, logApiError } from '@/lib/api/errors';
+import { getPostHogServerClient } from '@/lib/posthog';
 
 interface RouteParams {
   params: Promise<{ leadMagnetId: string }>;
@@ -56,6 +57,8 @@ export async function POST(request: Request, { params }: RouteParams) {
       logApiError('email-sequence/activate', updateError, { leadMagnetId });
       return ApiErrors.databaseError('Failed to activate sequence');
     }
+
+    try { getPostHogServerClient()?.capture({ distinctId: session.user.id, event: 'email_sequence_activated', properties: { lead_magnet_id: leadMagnetId, email_count: sequence.emails.length } }); } catch {}
 
     return NextResponse.json({
       emailSequence: emailSequenceFromRow(updatedSequence as EmailSequenceRow),

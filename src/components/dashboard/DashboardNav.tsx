@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import posthog from 'posthog-js';
 import { Magnet, Library, BarChart3, Settings, Plus, LogOut, FileText, Globe, Users, ChevronDown, BookOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/ds';
@@ -140,6 +141,7 @@ export function DashboardNav({ user }: DashboardNavProps) {
           <form action="/api/auth/signout" method="POST">
             <button
               type="submit"
+              onClick={() => { try { posthog.reset(); } catch {} }}
               className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground"
             >
               <LogOut className="h-4 w-4" />

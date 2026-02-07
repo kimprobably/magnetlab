@@ -12,6 +12,7 @@ import { logApiError } from '@/lib/api/errors';
 import { fireGtmLeadCreatedWebhook, fireGtmLeadQualifiedWebhook } from '@/lib/webhooks/gtm-system';
 import { resolveFullQuestionsForFunnel } from '@/lib/services/qualification';
 import { fireTrackingPixelLeadEvent, fireTrackingPixelQualifiedEvent } from '@/lib/services/tracking-pixels';
+import { getPostHogServerClient } from '@/lib/posthog';
 
 // Rate limiting configuration
 // Uses database-based checking for serverless compatibility
@@ -204,6 +205,8 @@ export async function POST(request: Request) {
       utmCampaign: lead.utm_campaign,
       leadMagnetTitle: leadMagnet?.title || null,
     }).catch((err) => logApiError('public/lead/tracking-pixels', err, { leadId: lead.id }));
+
+    try { getPostHogServerClient()?.capture({ distinctId: funnel.user_id, event: 'lead_captured', properties: { funnel_page_id: funnelPageId, lead_magnet_title: leadMagnet?.title || '', utm_source: utmSource || null, utm_medium: utmMedium || null, utm_campaign: utmCampaign || null } }); } catch {}
 
     return NextResponse.json({
       leadId: lead.id,
@@ -415,6 +418,8 @@ export async function PATCH(request: Request) {
       utmMedium: updatedLead.utm_medium,
       utmCampaign: updatedLead.utm_campaign,
     }).catch((err) => logApiError('public/lead/gtm-webhook-qualified', err, { leadId: lead.id }));
+
+    try { getPostHogServerClient()?.capture({ distinctId: lead.user_id, event: 'lead_qualified', properties: { is_qualified: isQualified, question_count: questions?.length || 0 } }); } catch {}
 
     return NextResponse.json({
       leadId: lead.id,

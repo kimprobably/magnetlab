@@ -7,6 +7,7 @@ import { createCheckoutSession, getOrCreateCustomer, STRIPE_PRICE_IDS } from '@/
 import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
 import { ApiErrors, logApiError } from '@/lib/api/errors';
 import type { SubscriptionPlan } from '@/lib/types/integrations';
+import { getPostHogServerClient } from '@/lib/posthog';
 
 export async function POST(request: Request) {
   try {
@@ -63,6 +64,8 @@ export async function POST(request: Request) {
         plan,
       },
     });
+
+    try { getPostHogServerClient()?.capture({ distinctId: session.user.id, event: 'checkout_initiated', properties: { plan } }); } catch {}
 
     return NextResponse.json({ url: checkoutSession.url });
   } catch (error) {

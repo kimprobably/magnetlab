@@ -7,6 +7,7 @@ import { auth } from '@/lib/auth';
 import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
 import { ApiErrors, logApiError } from '@/lib/api/errors';
 import { generateOptinContent } from '@/lib/ai/funnel-content-generator';
+import { getPostHogServerClient } from '@/lib/posthog';
 
 function generateSlug(title: string): string {
   return title
@@ -133,6 +134,8 @@ export async function POST(request: Request) {
       logApiError('landing-page/quick-create/create-fp', fpError, { userId: session.user.id });
       return ApiErrors.databaseError('Failed to create funnel page');
     }
+
+    try { getPostHogServerClient()?.capture({ distinctId: session.user.id, event: 'landing_page_quick_created', properties: { lead_magnet_id: leadMagnet.id, title: title.trim() } }); } catch {}
 
     return NextResponse.json({
       success: true,

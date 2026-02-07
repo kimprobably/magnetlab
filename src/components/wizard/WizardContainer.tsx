@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
+import posthog from 'posthog-js';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ContextStep } from './steps/ContextStep';
 import { IdeationStep } from './steps/IdeationStep';
@@ -50,7 +51,7 @@ export function WizardContainer() {
 
   const { startPolling, isLoading: isJobLoading } = useBackgroundJob<IdeationResult>({
     pollInterval: 2000,
-    timeout: 180000, // 3 minutes
+    timeout: 300000, // 5 minutes
     onComplete: (ideationResult) => {
       setState((prev) => ({
         ...prev,
@@ -116,6 +117,7 @@ export function WizardContainer() {
   }, []);
 
   const handleContextSubmit = useCallback(async (context: BusinessContext, sources?: IdeationSources) => {
+    try { posthog.capture('wizard_started', { source: 'context' }); } catch {}
     setGenerating('ideas');
     setError(null);
 
@@ -171,6 +173,7 @@ export function WizardContainer() {
   }, [startPolling]);
 
   const handleConceptSelect = useCallback((index: number) => {
+    try { posthog.capture('wizard_concept_selected', { concept_index: index }); } catch {}
     setState((prev) => ({
       ...prev,
       selectedConceptIndex: index,
@@ -189,6 +192,7 @@ export function WizardContainer() {
   }, [savedIdeation]);
 
   const handleCustomIdeaStart = useCallback(async (context: BusinessContext) => {
+    try { posthog.capture('wizard_custom_idea_started'); } catch {}
     setError(null);
 
     try {
@@ -252,6 +256,7 @@ export function WizardContainer() {
       }
 
       const extractedContent: ExtractedContent = await response.json();
+      try { posthog.capture('wizard_extraction_completed', { archetype }); } catch {}
 
       setState((prev) => ({
         ...prev,
@@ -308,6 +313,7 @@ export function WizardContainer() {
       }
 
       const postResult: PostWriterResult = await response.json();
+      try { posthog.capture('wizard_content_approved'); } catch {}
 
       setState((prev) => ({
         ...prev,
@@ -322,6 +328,7 @@ export function WizardContainer() {
   }, [state.extractedContent, state.ideationResult, state.selectedConceptIndex, state.brandKit, state.isCustomIdea, state.customConcept]);
 
   const handlePostSelect = useCallback((index: number) => {
+    try { posthog.capture('wizard_post_selected', { post_index: index }); } catch {}
     setState((prev) => ({
       ...prev,
       selectedPostIndex: index,

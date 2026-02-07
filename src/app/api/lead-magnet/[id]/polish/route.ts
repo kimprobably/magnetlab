@@ -7,6 +7,7 @@ import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
 import { polishLeadMagnetContent } from '@/lib/ai/lead-magnet-generator';
 import { ApiErrors, logApiError } from '@/lib/api/errors';
 import type { ExtractedContent, LeadMagnetConcept } from '@/lib/types/lead-magnet';
+import { getPostHogServerClient } from '@/lib/posthog';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -63,6 +64,8 @@ export async function POST(request: Request, { params }: RouteParams) {
       logApiError('lead-magnet/polish', updateError, { userId: session.user.id, leadMagnetId: id });
       return ApiErrors.databaseError('Failed to save polished content');
     }
+
+    try { getPostHogServerClient()?.capture({ distinctId: session.user.id, event: 'content_polished', properties: { lead_magnet_id: id } }); } catch {}
 
     return NextResponse.json({
       polishedContent,

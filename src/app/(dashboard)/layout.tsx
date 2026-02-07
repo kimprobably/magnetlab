@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { DashboardNav } from '@/components/dashboard/DashboardNav';
 import { FeedbackWidget } from '@/components/feedback/FeedbackWidget';
+import { PostHogIdentify } from '@/components/providers/PostHogIdentify';
 
 export default async function DashboardLayout({
   children,
@@ -16,6 +17,11 @@ export default async function DashboardLayout({
 
   return (
     <div className="min-h-screen bg-background">
+      <PostHogIdentify
+        userId={session.user.id!}
+        email={session.user.email}
+        name={session.user.name}
+      />
       <DashboardNav user={session.user} />
       <main>{children}</main>
       <FeedbackWidget

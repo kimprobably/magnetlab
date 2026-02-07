@@ -8,6 +8,7 @@ import { funnelPageFromRow, type FunnelPageRow } from '@/lib/types/funnel';
 import { ApiErrors, logApiError, isValidUUID } from '@/lib/api/errors';
 import { polishLeadMagnetContent } from '@/lib/ai/lead-magnet-generator';
 import type { ExtractedContent, LeadMagnetConcept } from '@/lib/types/lead-magnet';
+import { getPostHogServerClient } from '@/lib/posthog';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -121,6 +122,10 @@ export async function POST(request: Request, { params }: RouteParams) {
     const publicUrl = publish && cachedUsername
       ? `${process.env.NEXT_PUBLIC_APP_URL || ''}/p/${cachedUsername}/${funnel.slug}`
       : null;
+
+    if (publish) {
+      try { getPostHogServerClient()?.capture({ distinctId: session.user.id, event: 'funnel_published', properties: { funnel_id: id, slug: funnel.slug, has_public_url: !!publicUrl } }); } catch {}
+    }
 
     return NextResponse.json({
       funnel: funnelPageFromRow(data as FunnelPageRow),

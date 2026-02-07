@@ -7,6 +7,7 @@ import { auth } from '@/lib/auth';
 import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
 import { ApiErrors, logApiError } from '@/lib/api/errors';
 import { validateBody, createLeadMagnetSchema } from '@/lib/validations/api';
+import { getPostHogServerClient } from '@/lib/posthog';
 
 // GET - List all lead magnets for current user
 export async function GET(request: Request) {
@@ -121,6 +122,8 @@ export async function POST(request: Request) {
     } catch (err) {
       logApiError('lead-magnet/usage-increment', err, { userId: session.user.id, note: 'RPC unavailable' });
     }
+
+    try { getPostHogServerClient()?.capture({ distinctId: session.user.id, event: 'lead_magnet_created', properties: { lead_magnet_id: data.id, title: validated.title, archetype: validated.archetype } }); } catch {}
 
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
