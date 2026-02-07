@@ -191,6 +191,286 @@ TITLE FORMULAS:
 - The [Audience] [Format]: [Specific Outcome]
 - [Number] [Things] That [Outcome] (+ [Bonus Element])`;
 
+// Ordered list of all archetypes for batch processing
+const ALL_ARCHETYPES: LeadMagnetArchetype[] = [
+  'single-breakdown',
+  'single-system',
+  'focused-toolkit',
+  'single-calculator',
+  'focused-directory',
+  'mini-training',
+  'one-story',
+  'prompt',
+  'assessment',
+  'workflow',
+];
+
+// Archetype descriptions for batch prompts
+const ARCHETYPE_DESCRIPTIONS: Record<LeadMagnetArchetype, string> = {
+  'single-breakdown': 'Reverse-engineer ONE successful example in detail',
+  'single-system': 'ONE proven process for ONE specific outcome',
+  'focused-toolkit': 'Curated collection for ONE use case (10-20 items)',
+  'single-calculator': 'ONE working tool that answers ONE question',
+  'focused-directory': 'Curated list for ONE need (5-15 items with context)',
+  'mini-training': 'Focused tutorial on ONE specific skill',
+  'one-story': 'Your journey or ONE client transformation',
+  'prompt': 'ONE AI prompt that accomplishes ONE valuable task',
+  'assessment': 'Diagnostic tool that evaluates ONE specific area',
+  'workflow': 'ONE working automation they can import and use',
+};
+
+/**
+ * Build the additional context string from transcript insights and competitor analysis
+ */
+function buildAdditionalContext(sources?: {
+  callTranscriptInsights?: CallTranscriptInsights;
+  competitorAnalysis?: CompetitorAnalysis;
+}): string {
+  let additionalContext = '';
+
+  if (sources?.callTranscriptInsights) {
+    const insights = sources.callTranscriptInsights;
+    additionalContext += `
+
+REAL CUSTOMER INSIGHTS FROM SALES CALLS:
+Pain points mentioned:
+${insights.painPoints.map((p) => `- "${p.quote}" (${p.frequency}, theme: ${p.theme})`).join('\n')}
+
+Questions asked:
+${insights.frequentQuestions.map((q) => `- "${q.question}" - ${q.context}`).join('\n')}
+
+Desired transformations:
+${insights.transformationOutcomes.map((t) => `- From: "${t.currentState}" To: "${t.desiredState}"`).join('\n')}
+
+Objections:
+${insights.objections.map((o) => `- "${o.objection}" (underlying concern: ${o.underlyingConcern})`).join('\n')}
+
+Their exact language (use in copy):
+${insights.languagePatterns.map((p) => `- "${p}"`).join('\n')}
+
+IMPORTANT: Prioritize concepts that directly address these real pain points using their actual language.`;
+  }
+
+  if (sources?.competitorAnalysis) {
+    const analysis = sources.competitorAnalysis;
+    additionalContext += `
+
+INSPIRATION FROM SUCCESSFUL LEAD MAGNET:
+- Original Title: "${analysis.originalTitle}"
+- Format: ${analysis.format}
+- Archetype: ${analysis.detectedArchetype || 'Unknown'}
+- Pain Addressed: ${analysis.painPointAddressed}
+- Why it works: ${analysis.effectivenessFactors.join(', ')}
+- Adaptation ideas: ${analysis.adaptationSuggestions.join(', ')}
+
+IMPORTANT: Include an adapted version of this format as one of your concepts, customized for this business.`;
+  }
+
+  return additionalContext;
+}
+
+/**
+ * Generate a batch of lead magnet concepts for specific archetypes (for parallel processing)
+ * This is used by the parallel ideation system to split the work across multiple API calls.
+ */
+export async function generateConceptBatch(
+  archetypes: LeadMagnetArchetype[],
+  context: BusinessContext,
+  sources?: {
+    callTranscriptInsights?: CallTranscriptInsights;
+    competitorAnalysis?: CompetitorAnalysis;
+  }
+): Promise<LeadMagnetConcept[]> {
+  const additionalContext = buildAdditionalContext(sources);
+
+  // Build archetype-specific instructions
+  const archetypeInstructions = archetypes
+    .map((arch, idx) => `${idx + 1}. ${arch}: ${ARCHETYPE_DESCRIPTIONS[arch]}`)
+    .join('\n');
+
+  const prompt = `You are helping someone create high-converting LinkedIn lead magnets.
+
+THE VIRAL LEAD MAGNET FRAMEWORK - Every lead magnet must pass these 5 criteria:
+1. High Value ($50+) - Would someone pay $50+ for this?
+2. Urgent Pain Solved - Is this a RIGHT NOW problem?
+3. Actionable in <1h - Can they USE this and get a result within 60 minutes?
+4. Simple - Can they understand the core idea in under 2 minutes?
+5. Authority-Boosting - Does giving this away make YOU look like the expert?
+
+ARCHETYPES TO GENERATE (generate exactly ${archetypes.length} concepts):
+${archetypeInstructions}
+
+TITLE FORMULAS:
+- The [Specific Thing] That [Specific Result]
+- The [Number]-[Component] [Format] for [Outcome]
+- How I [Achieved Result]—[The Deliverable]
+- The [Audience] [Format]: [Specific Outcome]
+- [Number] [Things] That [Outcome] (+ [Bonus Element])
+
+BUSINESS CONTEXT:
+- Business: ${context.businessDescription}
+- Credibility markers: ${context.credibilityMarkers.join(', ')}
+- Urgent pains audience faces: ${context.urgentPains.join('; ')}
+- Templates you use: ${context.templates.join(', ') || 'None specified'}
+- Processes you've refined: ${context.processes.join(', ') || 'None specified'}
+- Tools/prompts you rely on: ${context.tools.join(', ') || 'None specified'}
+- Questions you answer repeatedly: ${context.frequentQuestions.join('; ') || 'None specified'}
+- Results you've achieved: ${context.results.join('; ')}
+- Success example to break down: ${context.successExample || 'None specified'}
+- Business type: ${context.businessType}
+${additionalContext}
+
+Generate ${archetypes.length} lead magnet concepts (one for each archetype listed above). For each, provide:
+1. archetype: The archetype key (e.g., "single-breakdown")
+2. archetypeName: Human-readable name (e.g., "The Single Breakdown")
+3. title: Using a title formula - specific and outcome-focused
+4. painSolved: The ONE urgent pain it solves
+5. whyNowHook: Which urgency technique to use
+6. linkedinPost: Complete post using hook through CTA, ready to copy-paste
+7. contents: Detailed description of what they'll receive
+8. deliveryFormat: Google Doc, Sheet, Loom, etc.
+9. viralCheck: Object with boolean for each of the 5 criteria
+10. creationTimeEstimate: Based on assets they already have
+11. bundlePotential: What other lead magnets could combine with this
+
+Return ONLY valid JSON with this structure:
+{
+  "concepts": [...${archetypes.length} concepts in order matching the archetypes above...]
+}`;
+
+  const response = await getAnthropicClient().messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 4000, // Smaller batches need fewer tokens
+    messages: [{ role: 'user', content: prompt }],
+  });
+
+  const textContent = response.content.find((block) => block.type === 'text');
+  if (!textContent || textContent.type !== 'text') {
+    throw new Error('No text response from Claude');
+  }
+
+  try {
+    const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);
+    const parsed = jsonMatch
+      ? JSON.parse(jsonMatch[0])
+      : JSON.parse(textContent.text);
+    return parsed.concepts as LeadMagnetConcept[];
+  } catch {
+    throw new Error('Failed to parse concept batch response');
+  }
+}
+
+/**
+ * Generate recommendations and bundle based on completed concepts
+ */
+export async function generateRecommendationsAndBundle(
+  concepts: LeadMagnetConcept[],
+  context: BusinessContext
+): Promise<{
+  recommendations: IdeationResult['recommendations'];
+  suggestedBundle: IdeationResult['suggestedBundle'];
+}> {
+  const conceptSummaries = concepts
+    .map((c, i) => `${i}. ${c.archetypeName}: "${c.title}" - ${c.painSolved}`)
+    .join('\n');
+
+  const prompt = `You're analyzing 10 lead magnet concepts to provide recommendations.
+
+BUSINESS CONTEXT:
+- Business: ${context.businessDescription}
+- Business type: ${context.businessType}
+- Main pains: ${context.urgentPains.join('; ')}
+
+THE 10 CONCEPTS (index 0-9):
+${conceptSummaries}
+
+Analyze these concepts and provide:
+1. recommendations - Pick the best concepts for each category:
+   - shipThisWeek: Which concept (0-9) is fastest to create with what they already have? Why?
+   - highestEngagement: Which concept (0-9) will get the most LinkedIn engagement? Why?
+   - bestAuthorityBuilder: Which concept (0-9) best positions them as an expert? Why?
+
+2. suggestedBundle - A bundle of 2-3 concepts that work well together:
+   - name: A compelling bundle name
+   - components: Array of concept indices that combine well
+   - combinedValue: What extra value does the bundle provide?
+   - releaseStrategy: How should they roll out the bundle?
+
+Return ONLY valid JSON:
+{
+  "recommendations": {
+    "shipThisWeek": { "conceptIndex": 0, "reason": "..." },
+    "highestEngagement": { "conceptIndex": 0, "reason": "..." },
+    "bestAuthorityBuilder": { "conceptIndex": 0, "reason": "..." }
+  },
+  "suggestedBundle": {
+    "name": "...",
+    "components": ["0", "1", "2"],
+    "combinedValue": "...",
+    "releaseStrategy": "..."
+  }
+}`;
+
+  const response = await getAnthropicClient().messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 1500,
+    messages: [{ role: 'user', content: prompt }],
+  });
+
+  const textContent = response.content.find((block) => block.type === 'text');
+  if (!textContent || textContent.type !== 'text') {
+    throw new Error('No text response from Claude');
+  }
+
+  try {
+    const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);
+    return jsonMatch
+      ? JSON.parse(jsonMatch[0])
+      : JSON.parse(textContent.text);
+  } catch {
+    throw new Error('Failed to parse recommendations response');
+  }
+}
+
+/**
+ * Generate lead magnet ideas using parallel batch processing
+ * Splits 10 archetypes into 3 parallel batches for ~3x faster generation
+ */
+export async function generateLeadMagnetIdeasParallel(
+  context: BusinessContext,
+  sources?: {
+    callTranscriptInsights?: CallTranscriptInsights;
+    competitorAnalysis?: CompetitorAnalysis;
+  }
+): Promise<IdeationResult> {
+  // Split archetypes into 3 batches for parallel processing
+  const batch1Archetypes = ALL_ARCHETYPES.slice(0, 3);  // 0-2: single-breakdown, single-system, focused-toolkit
+  const batch2Archetypes = ALL_ARCHETYPES.slice(3, 7);  // 3-6: single-calculator, focused-directory, mini-training, one-story
+  const batch3Archetypes = ALL_ARCHETYPES.slice(7, 10); // 7-9: prompt, assessment, workflow
+
+  // Generate all concept batches in parallel
+  const [batch1Concepts, batch2Concepts, batch3Concepts] = await Promise.all([
+    generateConceptBatch(batch1Archetypes, context, sources),
+    generateConceptBatch(batch2Archetypes, context, sources),
+    generateConceptBatch(batch3Archetypes, context, sources),
+  ]);
+
+  // Merge all concepts in order
+  const allConcepts = [...batch1Concepts, ...batch2Concepts, ...batch3Concepts];
+
+  // Generate recommendations based on all concepts
+  const { recommendations, suggestedBundle } = await generateRecommendationsAndBundle(
+    allConcepts,
+    context
+  );
+
+  return {
+    concepts: allConcepts,
+    recommendations,
+    suggestedBundle,
+  };
+}
+
 export async function generateLeadMagnetIdeas(
   context: BusinessContext,
   sources?: {
