@@ -35,10 +35,10 @@ export async function POST(request: Request, { params }: RouteParams) {
 
     const supabase = createSupabaseAdminClient();
 
-    // Get current funnel page
+    // Get current funnel page (left join so non-lead_magnet funnels still work)
     const { data: funnel, error: fetchError } = await supabase
       .from('funnel_pages')
-      .select('*, lead_magnets!inner(id)')
+      .select('*, lead_magnets(id)')
       .eq('id', id)
       .eq('user_id', session.user.id)
       .single();
@@ -48,6 +48,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     }
 
     // Check if user has username set (required for publishing)
+    let cachedUsername: string | null = null;
     if (publish) {
       const { data: user } = await supabase
         .from('users')
@@ -58,6 +59,7 @@ export async function POST(request: Request, { params }: RouteParams) {
       if (!user?.username) {
         return ApiErrors.validationError('You must set a username before publishing. Go to Settings to set your username.');
       }
+      cachedUsername = user.username;
 
       // Validate funnel has required fields
       if (!funnel.optin_headline) {
@@ -65,8 +67,8 @@ export async function POST(request: Request, { params }: RouteParams) {
       }
     }
 
-    // Auto-polish content on first publish if needed
-    if (publish) {
+    // Auto-polish content on first publish if needed (only for lead_magnet funnels)
+    if (publish && funnel.lead_magnets) {
       try {
         const { data: lm } = await supabase
           .from('lead_magnets')
@@ -116,15 +118,8 @@ export async function POST(request: Request, { params }: RouteParams) {
       return ApiErrors.databaseError('Failed to update publish status');
     }
 
-    // Get username for URL
-    const { data: user } = await supabase
-      .from('users')
-      .select('username')
-      .eq('id', session.user.id)
-      .single();
-
-    const publicUrl = publish && user?.username
-      ? `${process.env.NEXT_PUBLIC_APP_URL || ''}/p/${user.username}/${funnel.slug}`
+    const publicUrl = publish && cachedUsername
+      ? `${process.env.NEXT_PUBLIC_APP_URL || ''}/p/${cachedUsername}/${funnel.slug}`
       : null;
 
     return NextResponse.json({

@@ -190,27 +190,27 @@ export async function POST(request: Request) {
       .eq('id', session.user.id)
       .single();
 
-    // Check for slug collision and auto-increment if needed (max 100 attempts)
+    // Check for slug collision with a single query
     let finalSlug = slug;
-    let slugSuffix = 0;
-    const maxAttempts = 100;
+    const { data: existingSlugs } = await supabase
+      .from('funnel_pages')
+      .select('slug')
+      .eq('user_id', session.user.id)
+      .or(`slug.eq.${slug},slug.like.${slug}-%`);
 
-    while (slugSuffix < maxAttempts) {
-      const { data: slugExists } = await supabase
-        .from('funnel_pages')
-        .select('id')
-        .eq('user_id', session.user.id)
-        .eq('slug', finalSlug)
-        .single();
-
-      if (!slugExists) break;
-
-      slugSuffix++;
-      finalSlug = `${slug}-${slugSuffix}`;
-    }
-
-    if (slugSuffix >= maxAttempts) {
-      return ApiErrors.conflict('Unable to generate unique slug');
+    if (existingSlugs && existingSlugs.length > 0) {
+      const slugSet = new Set(existingSlugs.map((r: { slug: string }) => r.slug));
+      if (slugSet.has(slug)) {
+        // Find next available suffix
+        let suffix = 1;
+        while (suffix <= 100 && slugSet.has(`${slug}-${suffix}`)) {
+          suffix++;
+        }
+        if (suffix > 100) {
+          return ApiErrors.conflict('Unable to generate unique slug');
+        }
+        finalSlug = `${slug}-${suffix}`;
+      }
     }
 
     // Create funnel page
