@@ -126,12 +126,68 @@ export const createFunnelSchema = z.object({
 
 export type CreateFunnelInput = z.infer<typeof createFunnelSchema>;
 
+export const updateFunnelSchema = z.object({
+  slug: z.string().regex(/^[a-z0-9-]+$/, 'Slug must be lowercase alphanumeric with hyphens').max(100).optional(),
+  optinHeadline: z.string().max(500).nullable().optional(),
+  optinSubline: z.string().max(1000).nullable().optional(),
+  optinButtonText: z.string().max(100).nullable().optional(),
+  optinSocialProof: z.string().max(500).nullable().optional(),
+  thankyouHeadline: z.string().max(500).nullable().optional(),
+  thankyouSubline: z.string().max(1000).nullable().optional(),
+  vslUrl: z.string().url().max(2000).nullable().optional(),
+  calendlyUrl: z.string().url().max(2000).nullable().optional(),
+  qualificationPassMessage: z.string().max(1000).nullable().optional(),
+  qualificationFailMessage: z.string().max(1000).nullable().optional(),
+  theme: z.enum(['dark', 'light', 'custom']).optional(),
+  primaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Must be a valid hex color').optional(),
+  backgroundStyle: z.enum(['solid', 'gradient', 'pattern']).optional(),
+  logoUrl: z.string().url().max(2000).nullable().optional(),
+  qualificationFormId: z.string().uuid().nullable().optional(),
+});
+
+export type UpdateFunnelInput = z.infer<typeof updateFunnelSchema>;
+
 export const qualificationQuestionSchema = z.object({
   question: z.string().min(1).max(500),
   qualifyingAnswer: z.enum(['yes', 'no']),
 });
 
 export type QualificationQuestionInput = z.infer<typeof qualificationQuestionSchema>;
+
+// ============================================
+// POLISHED CONTENT SCHEMAS
+// ============================================
+
+const polishedBlockSchema = z.object({
+  type: z.string(),
+  content: z.string().optional(),
+  items: z.array(z.string()).optional(),
+}).passthrough();
+
+const polishedSectionSchema = z.object({
+  sectionName: z.string(),
+  introduction: z.string().optional().default(''),
+  keyTakeaway: z.string().optional().default(''),
+  blocks: z.array(polishedBlockSchema),
+}).passthrough();
+
+export const polishedContentSchema = z.object({
+  version: z.number().optional(),
+  polishedAt: z.string().optional(),
+  title: z.string(),
+  heroSummary: z.string().optional().default(''),
+  sections: z.array(polishedSectionSchema).min(1),
+  metadata: z.object({
+    wordCount: z.number().optional(),
+    readingTimeMinutes: z.number().optional(),
+  }).optional(),
+}).passthrough();
+
+export const updateContentBodySchema = z.object({
+  polishedContent: polishedContentSchema,
+});
+
+export type UpdateContentBodyInput = z.infer<typeof updateContentBodySchema>;
 
 // ============================================
 // WEBHOOK SCHEMAS

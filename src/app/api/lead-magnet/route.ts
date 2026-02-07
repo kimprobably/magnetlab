@@ -6,6 +6,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
 import { ApiErrors, logApiError } from '@/lib/api/errors';
+import { validateBody, createLeadMagnetSchema } from '@/lib/validations/api';
 
 // GET - List all lead magnets for current user
 export async function GET(request: Request) {
@@ -61,6 +62,11 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
+    const validation = validateBody(body, createLeadMagnetSchema);
+    if (!validation.success) {
+      return ApiErrors.validationError(validation.error, validation.details);
+    }
+
     const supabase = createSupabaseAdminClient();
 
     // Check usage limits
@@ -80,18 +86,19 @@ export async function POST(request: Request) {
     }
 
     // Create the lead magnet
+    const validated = validation.data;
     const { data, error } = await supabase
       .from('lead_magnets')
       .insert({
         user_id: session.user.id,
-        title: body.title,
-        archetype: body.archetype,
-        concept: body.concept,
-        extracted_content: body.extractedContent,
-        linkedin_post: body.linkedinPost,
-        post_variations: body.postVariations,
-        dm_template: body.dmTemplate,
-        cta_word: body.ctaWord,
+        title: validated.title,
+        archetype: validated.archetype,
+        concept: validated.concept,
+        extracted_content: validated.extractedContent,
+        linkedin_post: validated.linkedinPost,
+        post_variations: validated.postVariations,
+        dm_template: validated.dmTemplate,
+        cta_word: validated.ctaWord,
         status: 'draft',
       })
       .select()

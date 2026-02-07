@@ -6,6 +6,7 @@ import { auth } from '@/lib/auth';
 import { createSupabaseAdminClient } from '@/lib/utils/supabase-server';
 import { funnelPageFromRow, type FunnelPageRow } from '@/lib/types/funnel';
 import { ApiErrors, logApiError, isValidUUID } from '@/lib/api/errors';
+import { validateBody, updateFunnelSchema } from '@/lib/validations/api';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -58,34 +59,40 @@ export async function PUT(request: Request, { params }: RouteParams) {
     }
 
     const body = await request.json();
+    const validation = validateBody(body, updateFunnelSchema);
+    if (!validation.success) {
+      return ApiErrors.validationError(validation.error, validation.details);
+    }
+
+    const validated = validation.data;
     const supabase = createSupabaseAdminClient();
 
     // Build update object with snake_case keys
     const updateData: Record<string, unknown> = {};
 
-    if (body.slug !== undefined) updateData.slug = body.slug;
-    if (body.optinHeadline !== undefined) updateData.optin_headline = body.optinHeadline;
-    if (body.optinSubline !== undefined) updateData.optin_subline = body.optinSubline;
-    if (body.optinButtonText !== undefined) updateData.optin_button_text = body.optinButtonText;
-    if (body.optinSocialProof !== undefined) updateData.optin_social_proof = body.optinSocialProof;
-    if (body.thankyouHeadline !== undefined) updateData.thankyou_headline = body.thankyouHeadline;
-    if (body.thankyouSubline !== undefined) updateData.thankyou_subline = body.thankyouSubline;
-    if (body.vslUrl !== undefined) updateData.vsl_url = body.vslUrl;
-    if (body.calendlyUrl !== undefined) updateData.calendly_url = body.calendlyUrl;
-    if (body.qualificationPassMessage !== undefined) updateData.qualification_pass_message = body.qualificationPassMessage;
-    if (body.qualificationFailMessage !== undefined) updateData.qualification_fail_message = body.qualificationFailMessage;
-    if (body.theme !== undefined) updateData.theme = body.theme;
-    if (body.primaryColor !== undefined) updateData.primary_color = body.primaryColor;
-    if (body.backgroundStyle !== undefined) updateData.background_style = body.backgroundStyle;
-    if (body.logoUrl !== undefined) updateData.logo_url = body.logoUrl;
-    if (body.qualificationFormId !== undefined) updateData.qualification_form_id = body.qualificationFormId;
+    if (validated.slug !== undefined) updateData.slug = validated.slug;
+    if (validated.optinHeadline !== undefined) updateData.optin_headline = validated.optinHeadline;
+    if (validated.optinSubline !== undefined) updateData.optin_subline = validated.optinSubline;
+    if (validated.optinButtonText !== undefined) updateData.optin_button_text = validated.optinButtonText;
+    if (validated.optinSocialProof !== undefined) updateData.optin_social_proof = validated.optinSocialProof;
+    if (validated.thankyouHeadline !== undefined) updateData.thankyou_headline = validated.thankyouHeadline;
+    if (validated.thankyouSubline !== undefined) updateData.thankyou_subline = validated.thankyouSubline;
+    if (validated.vslUrl !== undefined) updateData.vsl_url = validated.vslUrl;
+    if (validated.calendlyUrl !== undefined) updateData.calendly_url = validated.calendlyUrl;
+    if (validated.qualificationPassMessage !== undefined) updateData.qualification_pass_message = validated.qualificationPassMessage;
+    if (validated.qualificationFailMessage !== undefined) updateData.qualification_fail_message = validated.qualificationFailMessage;
+    if (validated.theme !== undefined) updateData.theme = validated.theme;
+    if (validated.primaryColor !== undefined) updateData.primary_color = validated.primaryColor;
+    if (validated.backgroundStyle !== undefined) updateData.background_style = validated.backgroundStyle;
+    if (validated.logoUrl !== undefined) updateData.logo_url = validated.logoUrl;
+    if (validated.qualificationFormId !== undefined) updateData.qualification_form_id = validated.qualificationFormId;
 
     // Verify ownership of qualificationFormId if provided
-    if (body.qualificationFormId) {
+    if (validated.qualificationFormId) {
       const { data: qf } = await supabase
         .from('qualification_forms')
         .select('id')
-        .eq('id', body.qualificationFormId)
+        .eq('id', validated.qualificationFormId)
         .eq('user_id', session.user.id)
         .single();
 
@@ -95,12 +102,12 @@ export async function PUT(request: Request, { params }: RouteParams) {
     }
 
     // Check for slug collision if updating slug
-    if (body.slug) {
+    if (validated.slug) {
       const { data: existing } = await supabase
         .from('funnel_pages')
         .select('id')
         .eq('user_id', session.user.id)
-        .eq('slug', body.slug)
+        .eq('slug', validated.slug)
         .neq('id', id)
         .single();
 
